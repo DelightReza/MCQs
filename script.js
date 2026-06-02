@@ -40,6 +40,20 @@ function mediaType(path) {
   return 'unsupported';
 }
 
+function safeImagePath(path) {
+  if (!path) return null;
+  const raw = String(path).trim();
+  if (mediaType(raw) !== 'image') return null;
+  if (/^(javascript|data|vbscript):/i.test(raw)) return null;
+  try {
+    const url = new URL(raw, window.location.href);
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 function renderMedia(paths, className = 'question-media') {
   if (!paths?.length) return '';
   const html = paths.map((path) => {
@@ -539,8 +553,11 @@ function bindGlobalEvents() {
   document.addEventListener('click', (e) => {
     const target = e.target;
     if (target?.matches?.('[data-lightbox]')) {
-      byId('lightboxImg').src = target.getAttribute('data-lightbox');
-      byId('lightbox').classList.remove('hidden');
+      const safePath = safeImagePath(target.getAttribute('data-lightbox'));
+      if (safePath) {
+        byId('lightboxImg').src = safePath;
+        byId('lightbox').classList.remove('hidden');
+      }
     }
   });
   byId('lightboxClose').onclick = () => byId('lightbox').classList.add('hidden');
