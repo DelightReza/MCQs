@@ -40,29 +40,37 @@ function mediaType(path) {
   return 'unsupported';
 }
 
-function safeImagePath(path) {
+function safeMediaPath(path, expectedType = null) {
   if (!path) return null;
   const raw = String(path).trim();
-  if (mediaType(raw) !== 'image') return null;
+  if (expectedType && mediaType(raw) !== expectedType) return null;
   if (/^(javascript|data|vbscript):/i.test(raw)) return null;
   try {
     const url = new URL(raw, window.location.href);
-    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    if (!['http:', 'https:', 'file:'].includes(url.protocol)) return null;
+    if (['http:', 'https:'].includes(url.protocol) && url.origin !== window.location.origin) return null;
     return url.href;
   } catch {
     return null;
   }
 }
 
+function safeImagePath(path) {
+  return safeMediaPath(path, 'image');
+}
+
 function renderMedia(paths, className = 'question-media') {
   if (!paths?.length) return '';
   const html = paths.map((path) => {
-    const safe = escapeHtml(path);
     const type = mediaType(path);
-    if (type === 'image') return `<img loading="lazy" src="${safe}" alt="question media" data-lightbox="${safe}" />`;
-    if (type === 'audio') return `<audio controls preload="none" src="${safe}"></audio>`;
-    if (type === 'video') return `<video controls preload="none" src="${safe}"></video>`;
-    return `<div class="muted">Unsupported media: ${safe}</div>`;
+    if (type === 'unsupported') return `<div class="muted">Unsupported media: ${escapeHtml(path)}</div>`;
+    const safe = safeMediaPath(path, type);
+    if (!safe) return `<div class="muted">Blocked media: ${escapeHtml(path)}</div>`;
+    const escapedSafe = escapeHtml(safe);
+    if (type === 'image') return `<img loading="lazy" src="${escapedSafe}" alt="question media" data-lightbox="${escapedSafe}" />`;
+    if (type === 'audio') return `<audio controls preload="none" src="${escapedSafe}"></audio>`;
+    if (type === 'video') return `<video controls preload="none" src="${escapedSafe}"></video>`;
+    return `<div class="muted">Unsupported media: ${escapeHtml(path)}</div>`;
   }).join('');
   return `<div class="${className}">${html}</div>`;
 }
@@ -213,9 +221,13 @@ function renderQuestion() {
   byId('progressBar').style.width = `${((qz.current + 1) / qz.questions.length) * 100}%`;
 
   const selected = qz.answers[qz.current];
+  const correct = q.renderOptions.findIndex((o) => o.correct);
+  const practiceFeedback = qz.practiceMode && selected != null
+    ? `<div class="badge ${selected === correct ? 'correct' : 'incorrect'}">${selected === correct ? 'CORRECT' : `INCORRECT (Answer: ${correct + 1})`}</div>`
+    : '';
   const html = `
     <h3>${escapeHtml(q.question)}</h3>
-    <div class="muted">${Object.entries(q.metadata || {}).map(([k, v]) => `${k}: ${v}`).join(' | ')}</div>
+    <div class="muted">${Object.entries(q.metadata || {}).map(([k, v]) => `${escapeHtml(String(k))}: ${escapeHtml(String(v))}`).join(' | ')}</div>
     ${renderMedia(q.media, 'question-media')}
     <div class="options">
       ${q.renderOptions.map((opt, idx) => `
@@ -225,6 +237,7 @@ function renderQuestion() {
         </button>
       `).join('')}
     </div>
+    ${practiceFeedback}
   `;
   byId('questionContainer').innerHTML = html;
   byId('questionContainer').querySelectorAll('[data-opt]').forEach((btn) => btn.onclick = () => {
@@ -232,6 +245,8 @@ function renderQuestion() {
     persistActiveQuiz();
     renderQuestion();
   });
+  byId('markBtn').disabled = qz.examMode;
+  byId('bookmarkBtn').disabled = qz.examMode;
   byId('bookmarkBtn').textContent = getBookmarks().includes(q.id) ? 'Bookmarked' : 'Bookmark';
   updatePalette();
 }
@@ -262,13 +277,16 @@ function persistActiveQuiz() {
     bankFile: qz.bank.file,
     bankTitle: qz.bank.title,
     questionIds: qz.questions.map((q) => q.id),
+    optionOrders: qz.questions.map((q) => (q.renderOptions || []).map((opt) => opt._orig)),
     answers: qz.answers,
     visited: qz.visited,
     marked: qz.marked,
     current: qz.current,
     elapsed: qz.elapsed,
     startedAt: qz.startedAt,
-    timedMode: qz.timedMode
+    timedMode: qz.timedMode,
+    examMode: qz.examMode,
+    practiceMode: qz.practiceMode
   });
 }
 
@@ -375,15 +393,25 @@ function renderAnalytics() {
     .sort((a, b) => asc ? a[1] - b[1] : b[1] - a[1])
     .slice(0, 5);
 
+  const recentAttempts = attempts
+    .slice(0, 5)
+    .map((a) => `${escapeHtml(a.bankName || 'Unknown')} (${Number(a.score).toFixed(1)}%)`)
+    .join(' | ');
+  const strongAreas = top(topicPerf).map(([k]) => escapeHtml(k)).join(', ') || 'N/A';
+  const weakAreas = top(topicPerf, true).map(([k]) => escapeHtml(k)).join(', ') || 'N/A';
+  const subjectWise = Object.entries(subjectPerf)
+    .map(([k, v]) => `${escapeHtml(k)} ${(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1)}%`)
+    .join(' | ');
+
   byId('analytics').innerHTML = `
     <div>Total Attempts: <strong>${attempts.length}</strong></div>
     <div>Average Score: <strong>${avg.toFixed(1)}%</strong></div>
     <div>Best Score: <strong>${best.toFixed(1)}%</strong></div>
     <div>Worst Score: <strong>${worst.toFixed(1)}%</strong></div>
-    <div class="muted">Recent: ${attempts.slice(0, 5).map((a) => `${a.bankName} (${a.score.toFixed(1)}%)`).join(' | ')}</div>
-    <div class="muted">Strong Areas: ${top(topicPerf).map(([k]) => k).join(', ') || 'N/A'}</div>
-    <div class="muted">Weak Areas: ${top(topicPerf, true).map(([k]) => k).join(', ') || 'N/A'}</div>
-    <div class="muted">Subject-wise: ${Object.entries(subjectPerf).map(([k, v]) => `${k} ${(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1)}%`).join(' | ')}</div>
+    <div class="muted">Recent: ${recentAttempts}</div>
+    <div class="muted">Strong Areas: ${strongAreas}</div>
+    <div class="muted">Weak Areas: ${weakAreas}</div>
+    <div class="muted">Subject-wise: ${subjectWise}</div>
   `;
 }
 
@@ -457,7 +485,9 @@ async function prepareQuiz(bank, questions, settings) {
     marked: Array(selectedQuestions.length).fill(false),
     elapsed: 0,
     startedAt: Date.now(),
-    timedMode: settings.timedMode,
+    timedMode: settings.practiceMode ? false : settings.timedMode,
+    examMode: settings.examMode,
+    practiceMode: settings.practiceMode,
     timerId: null,
     lastResult: null
   };
@@ -483,8 +513,15 @@ function downloadFile(name, content, type = 'text/plain') {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = name; a.click();
-  URL.revokeObjectURL(url);
+  a.href = url;
+  a.download = name;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 0);
 }
 
 function bindGlobalEvents() {
@@ -507,9 +544,12 @@ function bindGlobalEvents() {
         shuffleQuestions: byId('shuffleQuestions').checked,
         shuffleOptions: byId('shuffleOptions').checked,
         timedMode: byId('timedMode').checked,
+        examMode: byId('examMode').checked,
+        practiceMode: byId('practiceMode').checked,
         fullscreenMode: byId('fullscreenMode').checked,
         bookmarkedOnly: byId('bookmarkedOnly').checked
       };
+      if (settings.examMode && settings.practiceMode) throw new Error('Select either Exam Mode or Practice Mode, not both.');
       const questions = state.parsedBanks[state.selectedBank.file] || [];
       await prepareQuiz(state.selectedBank, questions, settings);
     } catch (e) {
@@ -544,7 +584,7 @@ function bindGlobalEvents() {
     const bookmarks = new Set(getBookmarks());
     const bankQuestions = Object.values(state.parsedBanks).flat();
     const marked = bankQuestions.filter((q) => bookmarks.has(q.id));
-    byId('reviewList').innerHTML = marked.map((q, i) => `<article class="review-card"><h4>${i + 1}. ${escapeHtml(q.question)}</h4>${renderMedia(q.media)}<div class="muted">${q.bankFile}</div></article>`).join('') || '<p class="muted">No bookmarks yet.</p>';
+    byId('reviewList').innerHTML = marked.map((q, i) => `<article class="review-card"><h4>${i + 1}. ${escapeHtml(q.question)}</h4>${renderMedia(q.media)}<div class="muted">${escapeHtml(q.bankFile)}</div></article>`).join('') || '<p class="muted">No bookmarks yet.</p>';
     showView('reviewView');
   };
 
@@ -602,7 +642,19 @@ function resumeQuiz(confirmedByUser = false) {
   if (!confirmedByUser && !confirm('Resume previous quiz?')) return;
   const source = state.parsedBanks[saved.bankFile] || [];
   const map = new Map(source.map((q) => [q.id, q]));
-  const questions = saved.questionIds.map((id) => map.get(id)).filter(Boolean).map((q) => ({ ...q, renderOptions: applyOptionOrder(q, false) }));
+  const questions = saved.questionIds.map((id, i) => {
+    const q = map.get(id);
+    if (!q) return null;
+    const savedOrder = saved.optionOrders?.[i];
+    const hasValidSavedOrder = Array.isArray(savedOrder)
+      && savedOrder.length === q.options.length
+      && new Set(savedOrder).size === q.options.length
+      && savedOrder.every((origIdx) => Number.isInteger(origIdx) && origIdx >= 0 && origIdx < q.options.length);
+    const renderOptions = hasValidSavedOrder
+      ? savedOrder.map((origIdx) => ({ ...q.options[origIdx], _orig: origIdx }))
+      : applyOptionOrder(q, false);
+    return { ...q, renderOptions };
+  }).filter(Boolean);
   if (!questions.length) return;
   state.quiz = {
     bank: state.selectedBank,
@@ -614,6 +666,8 @@ function resumeQuiz(confirmedByUser = false) {
     elapsed: saved.elapsed || 0,
     startedAt: saved.startedAt || Date.now(),
     timedMode: saved.timedMode,
+    examMode: saved.examMode || false,
+    practiceMode: saved.practiceMode || false,
     timerId: null,
     lastResult: null
   };
