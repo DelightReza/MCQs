@@ -1,0 +1,28 @@
+Q: Normal adult pulse rate?
+40-60 bpm
++ 60-100 bpm
+  100-120 bpm
+  120-140 bpm
+
+---
+
+Q: Most likely diagnosis from ECG + murmur?
+CATEGORY: Cardiology
+TOPIC: ECG
+DIFFICULTY: Medium
+TAGS: ecg,murmur,stemi
+MEDIA: media/images/ecg1.png
+MEDIA: media/audio/heart_sound.mp3
+
+OPTION:
+CORRECT: true
+TEXT: STEMI
+
+OPTION:
+TEXT: NSTEMI
+
+OPTION:
+TEXT: Pericarditis
+
+OPTION:
+TEXT: Hyperkalemia

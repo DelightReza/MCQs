@@ -1,0 +1,28 @@
+Q: Drug of choice in anaphylaxis?
+* Adrenaline
+  Atropine
+  Lidocaine
+  Diazepam
+
+---
+
+Q: Select beta-blocker options with media.
+CATEGORY: Pharmacology
+TOPIC: Autonomic Drugs
+DIFFICULTY: Easy
+TAGS: beta-blocker
+
+OPTION:
+CORRECT: true
+TEXT: Propranolol
+MEDIA: media/images/propranolol.png
+
+OPTION:
+TEXT: Furosemide
+MEDIA: media/images/furosemide.png
+
+OPTION:
+TEXT: Amlodipine
+
+OPTION:
+TEXT: Digoxin

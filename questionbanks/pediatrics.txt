@@ -1,0 +1,30 @@
+Q: Which vitamin deficiency causes scurvy?
+* Vitamin C
+  Vitamin A
+  Vitamin D
+  Vitamin K
+
+---
+
+Q: Identify this neonatal score system.
+CATEGORY: Pediatrics
+TOPIC: Neonatology
+SUBTOPIC: Apgar Score
+DIFFICULTY: Easy
+TAGS: newborn,apgar
+SOURCE: University Exam
+YEAR: 2025
+MEDIA: media/images/apgar_chart.png
+
+OPTION:
+CORRECT: true
+TEXT: Apgar Score
+
+OPTION:
+TEXT: Bishop Score
+
+OPTION:
+TEXT: Glasgow Coma Scale
+
+OPTION:
+TEXT: Silverman Anderson Score

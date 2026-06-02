@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1f6feb" />
+  <title>Universal Quiz Platform</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app" class="app">
+    <header class="topbar">
+      <h1>Universal Quiz Platform</h1>
+      <div class="topbar-actions">
+        <button id="themeToggle" aria-label="Toggle theme">🌙 Theme</button>
+        <button id="installBtn" class="hidden">Install App</button>
+      </div>
+    </header>
+
+    <main id="dashboard" class="view active">
+      <section class="panel">
+        <h2>Question Banks</h2>
+        <div class="controls-grid">
+          <input id="bankSearch" type="search" placeholder="Search by title, subject, year" />
+          <select id="subjectFilter"><option value="">All Subjects</option></select>
+          <select id="yearFilter"><option value="">All Years</option></select>
+          <select id="sortBanks">
+            <option value="az">Sort A-Z</option>
+            <option value="za">Sort Z-A</option>
+          </select>
+        </div>
+        <div id="bankList" class="bank-list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Quiz Setup</h2>
+        <div class="setup-grid">
+          <label>Selected Bank: <strong id="selectedBankLabel">None</strong></label>
+          <label>Number of Questions
+            <select id="questionCount">
+              <option>10</option><option>20</option><option>25</option><option>40</option>
+              <option>50</option><option>75</option><option>100</option><option>200</option>
+              <option>500</option><option value="all">All Questions</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="shuffleQuestions" checked /> Shuffle Questions</label>
+          <label><input type="checkbox" id="shuffleOptions" checked /> Shuffle Options</label>
+          <label><input type="checkbox" id="timedMode" checked /> Timed Mode</label>
+          <label><input type="checkbox" id="examMode" checked /> Exam Mode</label>
+          <label><input type="checkbox" id="practiceMode" /> Practice Mode</label>
+          <label><input type="checkbox" id="fullscreenMode" /> Fullscreen Mode</label>
+          <label><input type="checkbox" id="bookmarkedOnly" /> Bookmarked Questions Mode</label>
+        </div>
+        <div class="actions-row">
+          <button id="startQuizBtn" disabled>Start Quiz</button>
+          <button id="resumeBtn" class="hidden">Resume Previous Quiz</button>
+          <button id="manageBookmarksBtn">Review Bookmarks</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Analytics Dashboard</h2>
+        <div id="analytics" class="analytics"></div>
+      </section>
+    </main>
+
+    <main id="quizView" class="view">
+      <section class="quiz-header">
+        <div><strong id="quizTitle"></strong></div>
+        <div>Question <span id="currentQ">1</span>/<span id="totalQ">0</span></div>
+        <div id="timerWrap">⏱ <span id="timer">00:00</span></div>
+      </section>
+      <div class="progress-wrap"><div id="progressBar" class="progress-bar"></div></div>
+
+      <section id="questionContainer" class="question-container"></section>
+
+      <section class="quiz-actions">
+        <button id="prevBtn">Previous</button>
+        <button id="markBtn">Mark for Review</button>
+        <button id="bookmarkBtn">Bookmark</button>
+        <button id="nextBtn">Next</button>
+        <button id="submitBtn">Submit</button>
+      </section>
+
+      <section>
+        <h3>Question Palette</h3>
+        <div id="palette" class="palette"></div>
+      </section>
+    </main>
+
+    <main id="resultsView" class="view">
+      <section class="panel">
+        <h2>Result</h2>
+        <div id="resultSummary"></div>
+        <div class="actions-row">
+          <button id="reviewBtn">Review</button>
+          <button id="downloadCsvBtn">Export CSV</button>
+          <button id="downloadJsonBtn">Export JSON</button>
+          <button id="printBtn">Print / PDF</button>
+          <button id="backHomeBtn">Back to Dashboard</button>
+        </div>
+      </section>
+    </main>
+
+    <main id="reviewView" class="view">
+      <section class="panel">
+        <h2>Review Mode</h2>
+        <div class="controls-grid">
+          <select id="reviewFilter">
+            <option value="all">Review All</option>
+            <option value="incorrect">Review Incorrect</option>
+            <option value="unanswered">Review Unanswered</option>
+            <option value="marked">Review Marked</option>
+            <option value="correct">Review Correct</option>
+          </select>
+          <input id="reviewSearch" type="search" placeholder="Search text, category, topic, tags" />
+          <button id="exportBookmarksBtn">Export Bookmarks JSON</button>
+          <button id="reviewBackBtn">Back</button>
+        </div>
+        <div id="reviewList"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="lightbox" class="lightbox hidden">
+    <button id="lightboxClose">×</button>
+    <img id="lightboxImg" alt="Preview" />
+  </div>
+
+  <script src="script.js?v=2"></script>
+</body>
+</html>

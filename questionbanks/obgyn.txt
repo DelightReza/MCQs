@@ -1,0 +1,27 @@
+Q: Most common cause of postpartum hemorrhage?
+* Uterine atony
+  Placenta previa
+  Uterine rupture
+  Coagulopathy
+
+---
+
+Q: Fetal heart sound suggests?
+CATEGORY: OBGYN
+TOPIC: Fetal Monitoring
+DIFFICULTY: Medium
+TAGS: ctg,fetal-heart
+MEDIA: media/audio/fetal_heart.wav
+
+OPTION:
+CORRECT: true
+TEXT: Fetal distress
+
+OPTION:
+TEXT: Normal tracing
+
+OPTION:
+TEXT: Maternal tachycardia
+
+OPTION:
+TEXT: Placental infarction

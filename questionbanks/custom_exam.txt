@@ -1,0 +1,39 @@
+Q: Capital city of France?
+* Paris
+  Berlin
+  Madrid
+  Rome
+
+---
+
+Q: Which language runs in web browsers?
++ JavaScript
+  C
+  Rust
+  Go
+
+---
+
+Q: Diagnose this case from multiple media clues.
+CATEGORY: Mixed
+TOPIC: Integrated Clinical Reasoning
+DIFFICULTY: Hard
+TAGS: image,audio,video
+MEDIA: media/images/chest_xray.jpg
+MEDIA: media/audio/case_clip.ogg
+MEDIA: media/videos/examination.mp4
+
+OPTION:
+CORRECT: true
+TEXT: Community acquired pneumonia
+MEDIA: media/images/pneumonia_marker.png
+
+OPTION:
+TEXT: Pulmonary edema
+MEDIA: media/images/edema_marker.png
+
+OPTION:
+TEXT: Pneumothorax
+
+OPTION:
+TEXT: Tuberculosis

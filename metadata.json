@@ -1,0 +1,10 @@
+{
+  "question_banks": [
+    {"file": "pediatrics.txt", "title": "Pediatrics Module 1", "subject": "Pediatrics", "year": "5th Year", "icon": "stethoscope"},
+    {"file": "medicine.txt", "title": "General Medicine Basics", "subject": "Medicine", "year": "5th Year", "icon": "activity"},
+    {"file": "surgery.txt", "title": "Surgery Essentials", "subject": "Surgery", "year": "5th Year", "icon": "scissors"},
+    {"file": "obgyn.txt", "title": "Obstetrics & Gynecology", "subject": "OBGYN", "year": "5th Year", "icon": "baby"},
+    {"file": "pharmacology.txt", "title": "Pharmacology Revision", "subject": "Pharmacology", "year": "4th Year", "icon": "pill"},
+    {"file": "custom_exam.txt", "title": "Custom Mixed Exam", "subject": "Mixed", "year": "Final", "icon": "clipboard"}
+  ]
+}

@@ -1,0 +1,27 @@
+Q: Best initial step in trauma airway compromise?
++ Secure airway with cervical spine protection
+  Immediate laparotomy
+  Start oral feeding
+  Wait and observe
+
+---
+
+Q: Identify the instrument.
+CATEGORY: Surgery
+TOPIC: Instruments
+DIFFICULTY: Easy
+TAGS: forceps
+MEDIA: media/images/forceps.png
+
+OPTION:
+CORRECT: true
+TEXT: Artery forceps
+
+OPTION:
+TEXT: Needle holder
+
+OPTION:
+TEXT: Bone cutter
+
+OPTION:
+TEXT: Retractor
