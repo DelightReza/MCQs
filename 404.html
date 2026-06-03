@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Universal Quiz Platform</title>
+  <script type="text/javascript">
+    const path = window.location.pathname;
+    const segment = path.substring(path.lastIndexOf('/') + 1);
+    const originFolder = path.substring(0, path.lastIndexOf('/'));
+    if (segment && segment !== 'index.html') {
+      window.location.replace(window.location.origin + originFolder + '/?bank=' + encodeURIComponent(segment));
+    } else {
+      window.location.replace(window.location.origin + originFolder + '/');
+    }
+  </script>
+</head>
+<body></body>
+</html>

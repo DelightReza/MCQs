@@ -1,0 +1,925 @@
+const STORAGE_KEYS = {
+  theme: 'uqp_theme',
+  activeQuiz: 'uqp_active_quiz',
+  bookmarks: 'uqp_bookmarks'
+};
+
+const MEDIA_EXT = {
+  image: ['.jpg', '.jpeg', '.png', '.webp', '.svg', '.gif'],
+  audio: ['.mp3', '.wav', '.ogg', '.m4a'],
+  video: ['.mp4', '.webm', '.mov']
+};
+
+const CONSTANTS = {
+  QUESTION_MEDIA_MAX_HEIGHT: 400,
+  TIMER_PERSIST_INTERVAL: 5,
+  MAX_STORAGE_MB: 4.5,
+  MAX_BANK_SIZE: 5000,
+  PALETTE_SCROLL_AMOUNT: 200
+};
+
+const state = {
+  metadata: [],
+  bankCounts: {},
+  selectedBank: null,
+  parsedBanks: {},
+  quiz: null,
+  timerPersistCounter: 0
+};
+
+const byId = (id) => document.getElementById(id);
+const escapeHtml = (s = '') => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function readJson(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
+}
+
+function writeJson(key, value) {
+  try {
+    const serialized = JSON.stringify(value);
+    const sizeMB = new Blob([serialized]).size / (1024 * 1024);
+    if (sizeMB > CONSTANTS.MAX_STORAGE_MB) {
+      console.warn('Storage item too large, skipping save');
+      return;
+    }
+    localStorage.setItem(key, serialized);
+  } catch (e) {
+    console.warn('LocalStorage save failed:', e);
+  }
+}
+
+function normalizePath(path) { return path?.trim().replace(/^\.\//, '') || ''; }
+
+function mediaType(path) {
+  const p = path.toLowerCase();
+  if (MEDIA_EXT.image.some((ext) => p.endsWith(ext))) return 'image';
+  if (MEDIA_EXT.audio.some((ext) => p.endsWith(ext))) return 'audio';
+  if (MEDIA_EXT.video.some((ext) => p.endsWith(ext))) return 'video';
+  return 'unsupported';
+}
+
+function safeMediaPath(path, expectedType = null) {
+  if (!path) return null;
+  const raw = String(path).trim();
+  if (expectedType && mediaType(raw) !== expectedType) return null;
+  if (/^(javascript|data|vbscript):/i.test(raw)) return null;
+  try {
+    const url = new URL(raw, window.location.origin);
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    if (url.origin === window.location.origin) return url.href;
+    if (url.protocol === 'https:') return url.href;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function safeImagePath(path) { return safeMediaPath(path, 'image'); }
+
+function renderMedia(paths, className = 'question-media') {
+  if (!paths?.length) return '';
+  const html = paths.map((path) => {
+    const type = mediaType(path);
+    if (type === 'unsupported') return '<div class="muted">Unsupported media</div>';
+    const safe = safeMediaPath(path, type);
+    if (!safe) return '<div class="muted">Blocked media</div>';
+    const escapedSafe = escapeHtml(safe);
+    if (type === 'image') return '<img loading="lazy" src="' + escapedSafe + '" alt="question media" onclick="window.open(\'' + escapedSafe + '\', \'_blank\')" style="cursor: zoom-in;" />';
+    if (type === 'audio') return '<audio controls preload="none" src="' + escapedSafe + '"></audio>';
+    if (type === 'video') return '<video controls preload="none" src="' + escapedSafe + '"></video>';
+    return '<div class="muted">Unsupported media</div>';
+  }).join('');
+  return '<div class="' + className + '">' + html + '</div>';
+}
+
+function shuffle(arr) {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+function qid(bankFile, index, text) {
+  return bankFile + '::' + index + '::' + (text || '').slice(0, 40);
+}
+
+function extractMediaAndClean(text) {
+  const media = [];
+  if (!text) return { text: '', media };
+  const regex = /MEDIA:\s*([^\s]+)/gi;
+  let cleaned = text.replace(regex, (match, path) => {
+    media.push(normalizePath(path));
+    return '';
+  });
+  cleaned = cleaned.replace(/:\s*$/, '').trim();
+  return { text: cleaned, media };
+}
+
+function parseLegacyBlock(block, bankFile, index) {
+  const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return null;
+
+  const qLineIndex = lines.findIndex((l) => l.startsWith('Q:'));
+  let questionTextParts = [];
+  let optionLines = [];
+
+  if (qLineIndex !== -1) {
+    questionTextParts.push(lines[qLineIndex].replace(/^Q:\s*/, '').trim());
+    optionLines = lines.filter((_, idx) => idx !== qLineIndex);
+  } else {
+    let readingQuestion = true;
+    for (const line of lines) {
+      const isOption = /^[*+]\s+/.test(line);
+      if (readingQuestion && !isOption) {
+        questionTextParts.push(line);
+      } else {
+        readingQuestion = false;
+        optionLines.push(line);
+      }
+    }
+  }
+
+  const rawQuestion = questionTextParts.join(' ');
+  const { text: question, media: questionMedia } = extractMediaAndClean(rawQuestion);
+
+  const options = optionLines.map((raw) => {
+    const correct = /^[*+]\s+/.test(raw);
+    const cleanedRaw = raw.replace(/^[*+]\s+/, '').trim();
+    const { text, media: optMedia } = extractMediaAndClean(cleanedRaw);
+    return { text, correct, media: optMedia };
+  }).filter((o) => o.text);
+
+  if (!options.length) throw new Error('No options found near question ' + (index + 1));
+  const correctCount = options.filter((o) => o.correct).length;
+  if (correctCount !== 1) throw new Error('Question ' + (index + 1) + ' must have exactly one correct answer');
+
+  return {
+    id: qid(bankFile, index, question),
+    bankFile,
+    question,
+    media: questionMedia,
+    options
+  };
+}
+
+function parseStructuredBlock(block, bankFile, index) {
+  const lines = block.split('\n').map((l) => l.trim());
+  const q = { id: '', bankFile, question: '', media: [], options: [] };
+  let currentOption = null;
+  let inOptions = false;
+
+  for (const line of lines) {
+    if (!line) continue;
+    if (line.startsWith('Q:')) { q.question = line.replace(/^Q:\s*/, '').trim(); continue; }
+    if (line === 'OPTION:') {
+      inOptions = true;
+      currentOption = { text: '', correct: false, media: [] };
+      q.options.push(currentOption);
+      continue;
+    }
+    if (line.startsWith('MEDIA:')) {
+      const mediaPath = normalizePath(line.replace(/^MEDIA:\s*/, ''));
+      if (currentOption && inOptions) currentOption.media.push(mediaPath);
+      else q.media.push(mediaPath);
+      continue;
+    }
+    if (line.startsWith('CORRECT:') && currentOption) {
+      currentOption.correct = line.replace(/^CORRECT:\s*/, '').trim().toLowerCase() === 'true';
+      continue;
+    }
+    if (line.startsWith('TEXT:') && currentOption) {
+      currentOption.text = line.replace(/^TEXT:\s*/, '').trim();
+      continue;
+    }
+    if (!inOptions) q.question += ' ' + line;
+  }
+
+  q.question = q.question.trim();
+  if (!q.question) throw new Error('Missing question text near question ' + (index + 1));
+  q.options = q.options.filter((o) => o.text || o.media.length);
+  if (!q.options.length) throw new Error('No options found near question ' + (index + 1));
+  const correctCount = q.options.filter((o) => o.correct).length;
+  if (correctCount !== 1) throw new Error('Question ' + (index + 1) + ' must have exactly one correct answer');
+
+  const { text: cleanedQuestion, media: extractedMedia } = extractMediaAndClean(q.question);
+  q.question = cleanedQuestion;
+  q.media = [...q.media, ...extractedMedia];
+  q.id = qid(bankFile, index, q.question);
+  return q;
+}
+
+function parseQuestions(txt, bankFile) {
+  const parts = txt.split(/\n\s*---\s*\n/g).map((p) => p.trim()).filter(Boolean);
+  const parsed = [];
+  const errors = [];
+  for (let i = 0; i < parts.length; i++) {
+    try {
+      const block = parts[i];
+      const structured = /(^|\n)\s*OPTION:/m.test(block) || /(^|\n)\s*CORRECT:/m.test(block);
+      const parsedItem = structured ? parseStructuredBlock(block, bankFile, i) : parseLegacyBlock(block, bankFile, i);
+      if (parsedItem) parsed.push(parsedItem);
+    } catch (e) {
+      errors.push(String(e.message || e));
+    }
+  }
+  return { parsed, errors };
+}
+
+async function fetchText(path) {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error('Failed loading file');
+  return res.text();
+}
+
+function showView(id) {
+  document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
+  const target = byId(id);
+  if (target) {
+    target.classList.add('active');
+    writeJson('uqp_current_view', id);
+    if (history.state?.view !== id) {
+      history.pushState({ view: id }, '', window.location.pathname + window.location.search);
+    }
+  }
+}
+
+function formatTime(sec) {
+  const m = Math.floor(sec / 60).toString().padStart(2, '0');
+  const s = Math.floor(sec % 60).toString().padStart(2, '0');
+  return m + ':' + s;
+}
+
+function formatShortTime(sec) {
+  if (sec < 60) return sec + 's';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return s > 0 ? m + 'm' + s + 's' : m + 'm';
+}
+
+function paletteClass(idx) {
+  const qz = state.quiz;
+  if (idx === qz.current) return 'status-current';
+  if (!qz.visited[idx]) return 'status-notvisited';
+  if (qz.marked[idx]) return 'status-marked';
+  if (qz.answers[idx] != null) return 'status-answered';
+  return 'status-unanswered';
+}
+
+function getQuestionTime(qz, idx) {
+  if (!qz.questionTimes || !qz.questionTimes[idx]) return 0;
+  return qz.questionTimes[idx];
+}
+
+function scrollToQuestion() {
+  // Smooth scroll to top of question container, with offset for header
+  const questionContainer = byId('questionContainer');
+  if (!questionContainer) return;
+
+  const headerOffset = 20; // padding from top
+  const elementPosition = questionContainer.getBoundingClientRect().top;
+  const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+  window.scrollTo({
+    top: offsetPosition,
+    behavior: 'smooth'
+  });
+}
+
+function updatePalette() {
+  const qz = state.quiz;
+  const palette = byId('palette');
+
+  palette.innerHTML = qz.questions.map((_, i) => {
+    const timeSpent = getQuestionTime(qz, i);
+    const timeDisplay = qz.visited[i] ? formatShortTime(timeSpent) : '--';
+    return '<div class="palette-item ' + paletteClass(i) + '" data-go="' + i + '">' +
+      '<span class="palette-number">' + (i + 1) + '</span>' +
+      '<span class="palette-time">' + timeDisplay + '</span>' +
+      '<span class="palette-dot"></span>' +
+      '</div>';
+  }).join('');
+
+  palette.querySelectorAll('.palette-item').forEach((item) => {
+    item.onclick = () => {
+      qz.current = Number(item.dataset.go);
+      scrollToQuestion();
+      renderQuestion();
+      persistActiveQuiz();
+    };
+  });
+
+  setTimeout(() => {
+    const current = palette.querySelector('.status-current');
+    if (current) {
+      current.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, 50);
+}
+
+function scrollPalette(direction) {
+  const container = byId('palette').parentElement;
+  container.scrollBy({ left: direction * CONSTANTS.PALETTE_SCROLL_AMOUNT, behavior: 'smooth' });
+}
+
+function applyOptionOrder(question, shouldShuffle) {
+  if (!shouldShuffle) return question.options.map((o, idx) => ({ ...o, _orig: idx }));
+  return shuffle(question.options.map((o, idx) => ({ ...o, _orig: idx })));
+}
+
+function getBookmarks() { return readJson(STORAGE_KEYS.bookmarks, []); }
+function setBookmarks(v) { writeJson(STORAGE_KEYS.bookmarks, v); }
+
+function renderQuestion() {
+  const qz = state.quiz;
+  const q = qz.questions[qz.current];
+
+  const now = Date.now();
+  if (qz.lastQuestionStartTime) {
+    const timeSpent = Math.floor((now - qz.lastQuestionStartTime) / 1000);
+    if (qz.questionTimes) {
+      qz.questionTimes[qz.current] = (qz.questionTimes[qz.current] || 0) + timeSpent;
+    }
+  }
+  qz.lastQuestionStartTime = now;
+  qz.visited[qz.current] = true;
+
+  byId('currentQ').textContent = String(qz.current + 1);
+  byId('totalQ').textContent = String(qz.questions.length);
+  byId('quizTitle').textContent = qz.bank.title;
+  byId('progressBar').style.width = ((qz.current + 1) / qz.questions.length) * 100 + '%';
+
+  byId('prevBtn').disabled = (qz.current === 0);
+  byId('nextBtn').disabled = (qz.current === qz.questions.length - 1);
+
+  const selected = qz.answers[qz.current];
+  const correct = q.renderOptions?.findIndex((o) => o.correct) ?? -1;
+
+  const showFeedback = qz.practiceMode && selected != null;
+  const practiceFeedback = showFeedback
+    ? '<div class="badge ' + (selected === correct ? 'correct' : 'incorrect') + '">' + (selected === correct ? 'CORRECT' : 'INCORRECT (Answer: ' + (correct + 1) + ')') + '</div>'
+    : '';
+
+  const html = '<h3>' + escapeHtml(q.question) + '</h3>' +
+    renderMedia(q.media, 'question-media') +
+    '<div class="options">' +
+    q.renderOptions.map((opt, idx) =>
+      '<button class="option ' + (selected === idx ? 'selected' : '') + '" data-opt="' + idx + '">' +
+      '<div><strong>' + (idx + 1) + '.</strong> ' + escapeHtml(opt.text || '(Media option)') + '</div>' +
+      renderMedia(opt.media, 'option-media') +
+      '</button>'
+    ).join('') +
+    '</div>' +
+    practiceFeedback;
+
+  const container = byId('questionContainer');
+  container.innerHTML = html;
+  container.querySelectorAll('[data-opt]').forEach((btn) => btn.onclick = () => {
+    qz.answers[qz.current] = Number(btn.dataset.opt);
+    persistActiveQuiz();
+    renderQuestion();
+  });
+
+  byId('markBtn').disabled = qz.examMode;
+  byId('bookmarkBtn').disabled = qz.examMode;
+  byId('bookmarkBtn').textContent = getBookmarks().includes(q.id) ? 'Bookmarked' : 'Bookmark';
+  updatePalette();
+
+  // Scroll to top of question after render — delay ensures DOM is fully painted
+  setTimeout(() => {
+    scrollToQuestion();
+  }, 50);
+}
+
+function startTimer() {
+  if (!state.quiz?.timedMode) { byId('timerWrap').classList.add('hidden'); return; }
+  byId('timerWrap').classList.remove('hidden');
+  clearInterval(state.quiz.timerId);
+  state.quiz.timerId = setInterval(() => {
+    state.quiz.elapsed += 1;
+    state.timerPersistCounter += 1;
+    byId('timer').textContent = formatTime(state.quiz.elapsed);
+    if (state.timerPersistCounter >= CONSTANTS.TIMER_PERSIST_INTERVAL) {
+      state.timerPersistCounter = 0;
+      persistActiveQuiz();
+    }
+  }, 1000);
+}
+
+function stopTimer() { if (state.quiz?.timerId) clearInterval(state.quiz.timerId); }
+
+function persistActiveQuiz() {
+  const qz = state.quiz;
+  if (!qz) return;
+  writeJson(STORAGE_KEYS.activeQuiz, {
+    bankFile: qz.bank.file,
+    bankTitle: qz.bank.title,
+    questionIds: qz.questions.map((q) => q.id),
+    optionOrders: qz.questions.map((q) => (q.renderOptions || []).map((opt) => opt._orig)),
+    answers: qz.answers,
+    visited: qz.visited,
+    marked: qz.marked,
+    current: qz.current,
+    elapsed: qz.elapsed,
+    startedAt: qz.startedAt,
+    timedMode: qz.timedMode,
+    examMode: qz.examMode,
+    practiceMode: qz.practiceMode,
+    questionTimes: qz.questionTimes || []
+  });
+}
+
+function buildReviewList(filter = 'all', search = '') {
+  const qz = state.quiz;
+  if (!qz) return;
+  const term = search.trim().toLowerCase();
+  const filtered = qz.questions.map((q, i) => ({ q, i })).filter(({ q, i }) => {
+    const user = qz.answers[i];
+    const correct = q.renderOptions?.findIndex((o) => o.correct) ?? -1;
+    const isAnswered = user != null;
+    const isCorrect = user === correct;
+    if (filter === 'incorrect' && (user == null || isCorrect)) return false;
+    if (filter === 'unanswered' && user != null) return false;
+    if (filter === 'marked' && !qz.marked[i]) return false;
+    if (filter === 'correct' && !isCorrect) return false;
+    if (!term) return true;
+    return (q.question + ' ' + q.bankFile).toLowerCase().includes(term);
+  });
+
+  byId('reviewList').innerHTML = filtered.map(({ q, i }) => {
+    const user = qz.answers[i];
+    const correct = q.renderOptions?.findIndex((o) => o.correct) ?? -1;
+    const status = user == null ? 'unanswered' : user === correct ? 'correct' : 'incorrect';
+    const timeSpent = getQuestionTime(qz, i);
+    const timeHtml = timeSpent > 0 ? '<span class="pill count-pill">⏱ ' + formatShortTime(timeSpent) + '</span>' : '';
+
+    return '<article class="review-card">' +
+      '<div class="badge ' + status + '">' + status.toUpperCase() + '</div>' +
+      (qz.marked[i] ? '<div class="badge">MARKED</div>' : '') +
+      timeHtml +
+      '<h4>Q' + (i + 1) + '. ' + escapeHtml(q.question) + '</h4>' +
+      renderMedia(q.media, 'question-media') +
+      '<div class="options">' +
+      q.renderOptions.map((opt, idx) => {
+        const cls = idx === correct ? 'correct' : (idx === user && user !== correct ? 'incorrect' : '');
+        return '<div class="option ' + cls + '"><strong>' + (idx + 1) + '.</strong> ' + escapeHtml(opt.text || '(Media option)') + renderMedia(opt.media, 'option-media') + '</div>';
+      }).join('') +
+      '</div>' +
+      '</article>';
+  }).join('') || '<p class="muted">No questions match this filter.</p>';
+}
+
+function calculateResult(qz) {
+  let correct = 0; let incorrect = 0; let unanswered = 0;
+  qz.questions.forEach((q, i) => {
+    const user = qz.answers[i];
+    const answerIdx = q.renderOptions?.findIndex((o) => o.correct) ?? -1;
+    if (user == null) unanswered += 1;
+    else if (user === answerIdx) correct += 1;
+    else incorrect += 1;
+  });
+  const attempted = correct + incorrect;
+  const total = qz.questions.length;
+  return {
+    correct, incorrect, unanswered, attempted, total,
+    accuracy: total ? (correct / total) * 100 : 0,
+    score: total ? (correct / total) * 100 : 0
+  };
+}
+
+function submitQuiz() {
+  const qz = state.quiz;
+  const answered = qz.answers.filter((x) => x != null).length;
+  const unanswered = qz.questions.length - answered;
+  const marked = qz.marked.filter(Boolean).length;
+  if (!confirm('Submit quiz?\nAnswered: ' + answered + '\nUnanswered: ' + unanswered + '\nMarked: ' + marked)) return;
+
+  stopTimer();
+  const result = calculateResult(qz);
+  const payload = { ...result, bankName: qz.bank.title, date: new Date().toISOString(), elapsed: qz.elapsed };
+  localStorage.removeItem(STORAGE_KEYS.activeQuiz);
+
+  byId('resultSummary').innerHTML = '<div class="result-details">' +
+    '<div>Quiz Source: <strong>' + escapeHtml(payload.bankName) + '</strong></div>' +
+    '<div>Completion Date: ' + new Date(payload.date).toLocaleString() + '</div>' +
+    '<div>Total Duration: ' + formatTime(payload.elapsed) + '</div>' +
+    '<div>Total Items: ' + payload.total + '</div>' +
+    '<div>Correct: ' + payload.correct + '</div>' +
+    '<div>Incorrect: ' + payload.incorrect + '</div>' +
+    '<div>Skipped: ' + payload.unanswered + '</div>' +
+    '<div>Completion Rate: ' + payload.attempted + ' of ' + payload.total + '</div>' +
+    '<div>Overall Accuracy: ' + payload.accuracy.toFixed(2) + '%</div>' +
+    '<div>Final Score: ' + payload.score.toFixed(2) + '%</div>' +
+    '</div>';
+
+  qz.lastResult = payload;
+  showView('resultsView');
+}
+
+async function cacheActiveQuizAssets(qz) {
+  if (!('caches' in window) || !qz) return;
+  try {
+    const cache = await caches.open('uqp-v8');
+    if (qz.bank?.file) {
+      const bankMatch = await cache.match(qz.bank.file);
+      if (!bankMatch) await cache.add(qz.bank.file).catch(() => {});
+    }
+    const mediaUrls = [];
+    qz.questions.forEach((q) => {
+      if (q.media) q.media.forEach((path) => { if (path) mediaUrls.push(path); });
+      if (q.renderOptions) {
+        q.renderOptions.forEach((opt) => {
+          if (opt.media) opt.media.forEach((path) => { if (path) mediaUrls.push(path); });
+        });
+      }
+    });
+    const safeUrls = mediaUrls.map((path) => safeMediaPath(path)).filter(Boolean);
+    await Promise.all(safeUrls.map(async (url) => {
+      const match = await cache.match(url);
+      if (!match) await cache.add(url).catch(() => null);
+    }));
+  } catch (e) {
+    console.warn('On-demand caching skipped:', e);
+  }
+}
+
+function prepareQuiz(bank, questions, settings) {
+  let examMode = settings.examMode;
+  let practiceMode = settings.practiceMode;
+  if (examMode && practiceMode) practiceMode = false;
+  if (!examMode && !practiceMode) examMode = true;
+
+  let selectedQuestions = settings.shuffleQuestions ? shuffle(questions) : [...questions];
+  if (settings.bookmarkedOnly) {
+    const bookmarks = new Set(getBookmarks());
+    selectedQuestions = selectedQuestions.filter((q) => bookmarks.has(q.id));
+  }
+  if (!selectedQuestions.length) throw new Error('No questions available for selected filters/bookmarks.');
+
+  let count;
+  if (settings.count === 'all') {
+    count = selectedQuestions.length;
+  } else {
+    const numCount = Number(settings.count);
+    count = (isNaN(numCount) || numCount < 1) ? selectedQuestions.length : Math.min(numCount, selectedQuestions.length);
+  }
+
+  selectedQuestions = selectedQuestions.slice(0, count).map((q) => ({ ...q, renderOptions: applyOptionOrder(q, settings.shuffleOptions) }));
+
+  state.quiz = {
+    bank,
+    questions: selectedQuestions,
+    current: 0,
+    answers: Array(selectedQuestions.length).fill(null),
+    visited: Array(selectedQuestions.length).fill(false),
+    marked: Array(selectedQuestions.length).fill(false),
+    elapsed: 0,
+    startedAt: Date.now(),
+    timedMode: practiceMode ? false : settings.timedMode,
+    examMode,
+    practiceMode,
+    timerId: null,
+    lastResult: null,
+    questionTimes: Array(selectedQuestions.length).fill(0),
+    lastQuestionStartTime: Date.now()
+  };
+
+  if (settings.fullscreenMode && document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch((err) => console.warn('Fullscreen request failed:', err));
+  }
+
+  byId('timer').textContent = '00:00';
+  renderQuestion();
+  startTimer();
+  showView('quizView');
+  persistActiveQuiz();
+  cacheActiveQuizAssets(state.quiz);
+}
+
+function csvFromResult(res) {
+  const rows = [['Quiz Name','Date','Time Taken','Total','Correct','Incorrect','Unanswered','Attempted','Accuracy','Score']];
+  rows.push([res.bankName, res.date, formatTime(res.elapsed), res.total, res.correct, res.incorrect, res.unanswered, res.attempted, res.accuracy.toFixed(2), res.score.toFixed(2)]);
+  return rows.map((r) => r.map((x) => '"' + String(x).replaceAll('"', '""') + '"').join(',')).join('\n');
+}
+
+function downloadFile(name, content, type = 'text/plain') {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+}
+
+function updateResumeButtonVisibility() {
+  const activeQuiz = readJson(STORAGE_KEYS.activeQuiz, null);
+  byId('resumeBtn').classList.toggle('hidden', !activeQuiz);
+  byId('clearResumeBtn').classList.toggle('hidden', !activeQuiz);
+}
+
+function bindGlobalEvents() {
+  byId('themeToggle').onclick = () => {
+    const curr = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', curr);
+    localStorage.setItem(STORAGE_KEYS.theme, curr);
+    byId('themeToggle').textContent = curr === 'dark' ? '☀️' : '🌙';
+  };
+
+  byId('bankSearch').oninput = renderBankList;
+
+  byId('startQuizBtn').onclick = async () => {
+    try {
+      if (!state.selectedBank) return;
+      const settings = {
+        count: byId('questionCount').value,
+        shuffleQuestions: byId('shuffleQuestions').checked,
+        shuffleOptions: byId('shuffleOptions').checked,
+        timedMode: byId('timedMode').checked,
+        examMode: byId('examMode').checked,
+        practiceMode: byId('practiceMode').checked,
+        fullscreenMode: byId('fullscreenMode').checked,
+        bookmarkedOnly: byId('bookmarkedOnly').checked
+      };
+      const questions = state.parsedBanks[state.selectedBank.file] || [];
+      await prepareQuiz(state.selectedBank, questions, settings);
+    } catch (e) {
+      alert('Unable to start quiz: ' + e.message);
+    }
+  };
+
+  byId('resumeBtn').onclick = () => resumeQuiz(true);
+  byId('prevBtn').onclick = () => { 
+    if (state.quiz.current > 0) { 
+      state.quiz.current -= 1; 
+      scrollToQuestion(); 
+      renderQuestion(); 
+      persistActiveQuiz(); 
+    } 
+  };
+  byId('nextBtn').onclick = () => { 
+    if (state.quiz.current < state.quiz.questions.length - 1) { 
+      state.quiz.current += 1; 
+      scrollToQuestion(); 
+      renderQuestion(); 
+      persistActiveQuiz(); 
+    } 
+  };
+  byId('markBtn').onclick = () => { state.quiz.marked[state.quiz.current] = !state.quiz.marked[state.quiz.current]; renderQuestion(); persistActiveQuiz(); };
+  byId('bookmarkBtn').onclick = () => {
+    const q = state.quiz.questions[state.quiz.current];
+    const s = new Set(getBookmarks());
+    if (s.has(q.id)) s.delete(q.id); else s.add(q.id);
+    setBookmarks([...s]);
+    renderQuestion();
+  };
+  byId('submitBtn').onclick = submitQuiz;
+
+  byId('quitBtn').onclick = () => {
+    if (confirm('Exit to home dashboard? Your active session will be saved.')) {
+      stopTimer();
+      showView('dashboard');
+      state.quiz = null;
+      renderBankList();
+    }
+  };
+
+  byId('reviewBtn').onclick = () => { buildReviewList('all'); showView('reviewView'); };
+  byId('reviewFilter').onchange = () => buildReviewList(byId('reviewFilter').value, byId('reviewSearch').value);
+  byId('reviewSearch').oninput = () => buildReviewList(byId('reviewFilter').value, byId('reviewSearch').value);
+  byId('reviewBackBtn').onclick = () => showView('resultsView');
+
+  byId('downloadCsvBtn').onclick = () => downloadFile('result.csv', csvFromResult(state.quiz.lastResult), 'text/csv');
+  byId('downloadJsonBtn').onclick = () => downloadFile('result.json', JSON.stringify(state.quiz.lastResult, null, 2), 'application/json');
+  byId('printBtn').onclick = () => window.print();
+  byId('backHomeBtn').onclick = () => { showView('dashboard'); state.quiz = null; };
+
+  byId('manageBookmarksBtn').onclick = () => {
+    const bookmarks = new Set(getBookmarks());
+    const bankQuestions = Object.values(state.parsedBanks).flat();
+    const marked = bankQuestions.filter((q) => bookmarks.has(q.id));
+    byId('reviewList').innerHTML = marked.map((q, i) => {
+      const bankTitle = state.metadata.find((b) => b.file === q.bankFile)?.title || 'Question Bank';
+      return '<article class="review-card"><h4>' + (i + 1) + '. ' + escapeHtml(q.question) + '</h4>' + renderMedia(q.media) + '<div class="bank-card-badges"><span class="pill subject-pill">' + escapeHtml(bankTitle) + '</span></div></article>';
+    }).join('') || '<p class="muted">No bookmarks yet.</p>';
+    showView('reviewView');
+  };
+
+  byId('exportBookmarksBtn').onclick = () => downloadFile('bookmarks.json', JSON.stringify(getBookmarks(), null, 2), 'application/json');
+
+  byId('clearResumeBtn').onclick = () => {
+    if (confirm('Delete your saved quiz session? You will lose your current progress.')) {
+      stopTimer();
+      localStorage.removeItem(STORAGE_KEYS.activeQuiz);
+      state.quiz = null;
+      updateResumeButtonVisibility();
+      alert('Saved quiz session deleted.');
+    }
+  };
+
+  byId('paletteScrollLeft').onclick = () => scrollPalette(-1);
+  byId('paletteScrollRight').onclick = () => scrollPalette(1);
+
+  let touchStartX = 0;
+  const paletteContainer = byId('palette').parentElement;
+  paletteContainer.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+  paletteContainer.addEventListener('touchend', (e) => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 30) scrollPalette(diff > 0 ? 1 : -1);
+  }, { passive: true });
+
+  window.addEventListener('keydown', (e) => {
+    if (!state.quiz || !byId('quizView').classList.contains('active')) return;
+    const targetTag = e.target.tagName;
+    if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT' || e.target.isContentEditable) return;
+
+    if (/^[1-9]$/.test(e.key)) {
+      const idx = Number(e.key) - 1;
+      const q = state.quiz.questions[state.quiz.current];
+      if (idx < q.renderOptions.length) {
+        state.quiz.answers[state.quiz.current] = idx;
+        renderQuestion();
+        persistActiveQuiz();
+      }
+    }
+    if (e.key === 'ArrowLeft') byId('prevBtn').click();
+    if (e.key === 'ArrowRight') byId('nextBtn').click();
+    if (e.key.toLowerCase() === 'm') byId('markBtn').click();
+    if (e.key.toLowerCase() === 's') byId('submitBtn').click();
+    if (e.key.toLowerCase() === 'f' && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+  });
+}
+
+function resumeQuiz(confirmedByUser = false) {
+  const saved = readJson(STORAGE_KEYS.activeQuiz, null);
+  if (!saved) return;
+  const targetBank = state.metadata.find((x) => x.file === saved.bankFile);
+  if (!targetBank) return;
+  if (!confirmedByUser && !confirm('Resume previous quiz for "' + targetBank.title + '"?')) return;
+
+  state.selectedBank = targetBank;
+  byId('selectedBankLabel').textContent = targetBank.title;
+  byId('startQuizBtn').disabled = false;
+
+  const source = state.parsedBanks[saved.bankFile] || [];
+  const map = new Map(source.map((q) => [q.id, q]));
+  const questions = saved.questionIds.map((id, i) => {
+    const q = map.get(id);
+    if (!q) return null;
+    const savedOrder = saved.optionOrders?.[i];
+    const hasValidSavedOrder = Array.isArray(savedOrder)
+      && savedOrder.length === q.options.length
+      && new Set(savedOrder).size === savedOrder.length
+      && savedOrder.every((origIdx) => Number.isInteger(origIdx) && origIdx >= 0 && origIdx < q.options.length);
+    const renderOptions = hasValidSavedOrder
+      ? savedOrder.map((origIdx) => ({ ...q.options[origIdx], _orig: origIdx }))
+      : applyOptionOrder(q, false);
+    return { ...q, renderOptions };
+  }).filter(Boolean);
+
+  if (!questions.length) return;
+
+  state.quiz = {
+    bank: targetBank,
+    questions,
+    current: saved.current || 0,
+    answers: saved.answers || Array(questions.length).fill(null),
+    visited: saved.visited || Array(questions.length).fill(false),
+    marked: saved.marked || Array(questions.length).fill(false),
+    elapsed: saved.elapsed || 0,
+    startedAt: saved.startedAt || Date.now(),
+    timedMode: saved.timedMode,
+    examMode: saved.examMode || false,
+    practiceMode: saved.practiceMode || false,
+    timerId: null,
+    lastResult: null,
+    questionTimes: saved.questionTimes || Array(questions.length).fill(0),
+    lastQuestionStartTime: Date.now()
+  };
+
+  byId('timer').textContent = formatTime(state.quiz.elapsed);
+  renderQuestion();
+  startTimer();
+  showView('quizView');
+  cacheActiveQuizAssets(state.quiz);
+}
+
+function renderBankList() {
+  const search = byId('bankSearch').value.trim().toLowerCase();
+  let rows = [...state.metadata].filter((b) => {
+    if (!search) return true;
+    return (b.title + ' ' + b.file).toLowerCase().includes(search);
+  });
+  rows.sort((a, b) => a.title.localeCompare(b.title));
+
+  byId('bankList').innerHTML = rows.map((b) => {
+    const totalCount = state.bankCounts[b.file];
+    return '<article class="bank-card ' + (state.selectedBank?.file === b.file ? 'selected' : '') + '" data-bank="' + escapeHtml(b.file) + '">' +
+      '<div class="bank-card-title">' + escapeHtml(b.title) + '</div>' +
+      '<div class="bank-card-badges"><span class="pill count-pill">' + (totalCount !== undefined ? totalCount + ' MCQs' : '0 MCQs') + '</span></div>' +
+      '</article>';
+  }).join('') || '<p class="muted">No banks found.</p>';
+
+  byId('bankList').querySelectorAll('[data-bank]').forEach((card) => card.onclick = () => {
+    const bankFile = card.dataset.bank;
+    state.selectedBank = state.metadata.find((x) => x.file === bankFile);
+    byId('selectedBankLabel').textContent = state.selectedBank?.title || 'None Selected';
+    byId('startQuizBtn').disabled = !state.selectedBank;
+    renderBankList();
+  });
+
+  updateResumeButtonVisibility();
+}
+
+async function loadBanks() {
+  byId('bankList').innerHTML = '<p class="muted">Loading question banks...</p>';
+
+  const metadataRes = await fetch('metadata.json');
+  if (!metadataRes.ok) throw new Error('Invalid metadata.json');
+  const metadataJson = await metadataRes.json();
+  const banks = metadataJson.question_banks || [];
+  state.metadata = banks.map((b) => ({ ...b, file: normalizePath('questionbanks/' + b.file.replace(/^questionbanks\//, '')) }));
+
+  const errors = [];
+  await Promise.all(state.metadata.map(async (bank) => {
+    try {
+      const txt = await fetchText(bank.file);
+      const { parsed, errors: parseErrors } = parseQuestions(txt, bank.file);
+      if (parsed.length > CONSTANTS.MAX_BANK_SIZE) {
+        console.warn('Bank ' + bank.title + ' exceeds max size, truncating to ' + CONSTANTS.MAX_BANK_SIZE);
+        parsed.length = CONSTANTS.MAX_BANK_SIZE;
+      }
+      state.parsedBanks[bank.file] = parsed;
+      state.bankCounts[bank.file] = parsed.length;
+      if (parseErrors.length) errors.push(bank.title + ' (' + parseErrors.length + ' errors)');
+    } catch (e) {
+      errors.push(bank.title);
+      state.parsedBanks[bank.file] = [];
+      state.bankCounts[bank.file] = 0;
+    }
+  }));
+
+  renderBankList();
+  if (errors.length) console.warn('Some files had issues:\n- ' + errors.join('\n- '));
+}
+
+function registerPwa() {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js').catch(() => {});
+}
+
+async function init() {
+  const savedTheme = localStorage.getItem(STORAGE_KEYS.theme);
+  let theme = savedTheme;
+  if (!theme) theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+  byId('themeToggle').textContent = theme === 'dark' ? '☀️' : '🌙';
+
+  bindGlobalEvents();
+  registerPwa();
+
+  window.addEventListener('popstate', (e) => {
+    if (e.state?.view) showView(e.state.view);
+    else showView('dashboard');
+  });
+
+  window.addEventListener('beforeunload', (e) => {
+    if (state.quiz && byId('quizView').classList.contains('active')) {
+      e.preventDefault();
+      e.returnValue = 'You have an active quiz in progress. Are you sure you want to leave?';
+      return e.returnValue;
+    }
+  });
+
+  await loadBanks();
+
+  const lastView = readJson('uqp_current_view', 'dashboard');
+  const savedQuiz = readJson(STORAGE_KEYS.activeQuiz, null);
+
+  const urlParams = new URLSearchParams(window.location.search);
+  let bankParam = urlParams.get('bank');
+  if (!bankParam && window.location.hash) bankParam = window.location.hash.substring(1);
+
+  if (bankParam) {
+    const cleanParam = bankParam.toLowerCase().replace('.txt', '').trim();
+    const matchedBank = state.metadata.find((b) =>
+      b.file.toLowerCase().includes(cleanParam) || b.title.toLowerCase().includes(cleanParam)
+    );
+    if (matchedBank) {
+      state.selectedBank = matchedBank;
+      byId('selectedBankLabel').textContent = matchedBank.title;
+      byId('startQuizBtn').disabled = false;
+      renderBankList();
+    }
+  }
+
+  if (savedQuiz && lastView === 'quizView') {
+    resumeQuiz(true);
+  } else {
+    showView(lastView === 'quizView' ? 'dashboard' : lastView);
+  }
+}
+
+init().catch((e) => alert('Initialization failed: ' + e.message));
