@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#4f46e5" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:; media-src 'self' https: http:; connect-src 'self'; font-src 'self'; manifest-src 'self'; worker-src 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https: http:; media-src 'self' https: http:; connect-src 'self'; font-src 'self'; manifest-src 'self'; worker-src 'self';">
   <title>Universal Quiz Platform</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="style.css" />
@@ -20,6 +20,8 @@
         <button id="themeToggle" class="theme-btn" aria-label="Toggle theme">🌙</button>
       </div>
     </header>
+
+    <div id="ariaStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
     <main id="dashboard" class="view active">
       <div class="dashboard-grid">
@@ -68,7 +70,7 @@
             <div class="actions-row">
               <button id="startQuizBtn" disabled>Start Quiz</button>
               <button id="resumeBtn" class="hidden">Resume Previous Quiz</button>
-              <button id="clearResumeBtn" class="secondary hidden" style="color: var(--danger); border-color: var(--border);">Delete Saved Session</button>
+              <button id="clearResumeBtn" class="secondary hidden danger-text">Delete Saved Session</button>
               <button id="manageBookmarksBtn" class="secondary">Review Bookmarks</button>
             </div>
           </section>
@@ -82,7 +84,9 @@
         <div class="quiz-counter">Question <span id="currentQ">1</span>/<span id="totalQ">0</span></div>
         <div id="timerWrap">⏱ <span id="timer">00:00</span></div>
       </section>
-      <div class="progress-wrap"><div id="progressBar" class="progress-bar"></div></div>
+      <div class="progress-wrap">
+        <progress id="progressBar" class="progress-bar" value="0" max="100"></progress>
+      </div>
 
       <section id="questionContainer" class="question-container"></section>
 

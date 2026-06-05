@@ -28,7 +28,23 @@ const state = {
 };
 
 const byId = (id) => document.getElementById(id);
-const escapeHtml = (s = '') => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const escapeHtml = (s = '') => s.replace(/[&<<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- DOM Helper ---------- */
+function createEl(tag, classes = [], text = '', attrs = {}) {
+  const el = document.createElement(tag);
+  classes.filter(Boolean).forEach((c) => el.classList.add(c));
+  if (text) el.textContent = text;
+  Object.entries(attrs).forEach(([k, v]) => {
+    if (k === 'dataset') Object.assign(el.dataset, v);
+    else if (k.startsWith('on') && typeof v === 'function') {
+      el.addEventListener(k.slice(2).toLowerCase(), v);
+    } else {
+      el.setAttribute(k, v);
+    }
+  });
+  return el;
+}
 
 function readJson(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
@@ -76,20 +92,34 @@ function safeMediaPath(path, expectedType = null) {
 
 function safeImagePath(path) { return safeMediaPath(path, 'image'); }
 
+/* ---------- Media Rendering (DOM API) ---------- */
 function renderMedia(paths, className = 'question-media') {
-  if (!paths?.length) return '';
-  const html = paths.map((path) => {
+  if (!paths?.length) return null;
+  const wrapper = createEl('div', [className]);
+  paths.forEach((path) => {
     const type = mediaType(path);
-    if (type === 'unsupported') return '<div class="muted">Unsupported media</div>';
+    if (type === 'unsupported') {
+      wrapper.appendChild(createEl('div', ['muted'], 'Unsupported media'));
+      return;
+    }
     const safe = safeMediaPath(path, type);
-    if (!safe) return '<div class="muted">Blocked media</div>';
-    const escapedSafe = escapeHtml(safe);
-    if (type === 'image') return '<img loading="lazy" src="' + escapedSafe + '" alt="question media" onclick="window.open(\'' + escapedSafe + '\', \'_blank\')" style="cursor: zoom-in;" />';
-    if (type === 'audio') return '<audio controls preload="none" src="' + escapedSafe + '"></audio>';
-    if (type === 'video') return '<video controls preload="none" src="' + escapedSafe + '"></video>';
-    return '<div class="muted">Unsupported media</div>';
-  }).join('');
-  return '<div class="' + className + '">' + html + '</div>';
+    if (!safe) {
+      wrapper.appendChild(createEl('div', ['muted'], 'Blocked media'));
+      return;
+    }
+    if (type === 'image') {
+      const img = createEl('img', ['cursor-zoom'], '', { src: safe, alt: 'question media', loading: 'lazy' });
+      img.addEventListener('click', () => window.open(safe, '_blank'));
+      wrapper.appendChild(img);
+    } else if (type === 'audio') {
+      wrapper.appendChild(createEl('audio', [], '', { controls: '', preload: 'none', src: safe }));
+    } else if (type === 'video') {
+      wrapper.appendChild(createEl('video', [], '', { controls: '', preload: 'none', src: safe }));
+    } else {
+      wrapper.appendChild(createEl('div', ['muted'], 'Unsupported media'));
+    }
+  });
+  return wrapper;
 }
 
 function shuffle(arr) {
@@ -273,41 +303,38 @@ function getQuestionTime(qz, idx) {
 }
 
 function scrollToQuestion() {
-  // Smooth scroll to top of question container, with offset for header
   const questionContainer = byId('questionContainer');
   if (!questionContainer) return;
-
-  const headerOffset = 20; // padding from top
+  const headerOffset = 20;
   const elementPosition = questionContainer.getBoundingClientRect().top;
   const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-
-  window.scrollTo({
-    top: offsetPosition,
-    behavior: 'smooth'
-  });
+  window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
 }
 
+/* ---------- Palette (DOM API) ---------- */
 function updatePalette() {
   const qz = state.quiz;
   const palette = byId('palette');
+  palette.innerHTML = '';
 
-  palette.innerHTML = qz.questions.map((_, i) => {
+  qz.questions.forEach((_, i) => {
     const timeSpent = getQuestionTime(qz, i);
     const timeDisplay = qz.visited[i] ? formatShortTime(timeSpent) : '--';
-    return '<div class="palette-item ' + paletteClass(i) + '" data-go="' + i + '">' +
-      '<span class="palette-number">' + (i + 1) + '</span>' +
-      '<span class="palette-time">' + timeDisplay + '</span>' +
-      '<span class="palette-dot"></span>' +
-      '</div>';
-  }).join('');
 
-  palette.querySelectorAll('.palette-item').forEach((item) => {
-    item.onclick = () => {
-      qz.current = Number(item.dataset.go);
-      scrollToQuestion();
+    const item = createEl('div', ['palette-item', paletteClass(i)]);
+    item.dataset.go = i;
+
+    item.appendChild(createEl('span', ['palette-number'], String(i + 1)));
+    item.appendChild(createEl('span', ['palette-time'], timeDisplay));
+    item.appendChild(createEl('span', ['palette-dot']));
+
+    item.addEventListener('click', () => {
+      qz.current = i;
       renderQuestion();
       persistActiveQuiz();
-    };
+    });
+
+    palette.appendChild(item);
   });
 
   setTimeout(() => {
@@ -331,6 +358,7 @@ function applyOptionOrder(question, shouldShuffle) {
 function getBookmarks() { return readJson(STORAGE_KEYS.bookmarks, []); }
 function setBookmarks(v) { writeJson(STORAGE_KEYS.bookmarks, v); }
 
+/* ---------- Question Rendering (DOM API) ---------- */
 function renderQuestion() {
   const qz = state.quiz;
   const q = qz.questions[qz.current];
@@ -348,61 +376,88 @@ function renderQuestion() {
   byId('currentQ').textContent = String(qz.current + 1);
   byId('totalQ').textContent = String(qz.questions.length);
   byId('quizTitle').textContent = qz.bank.title;
-  byId('progressBar').style.width = ((qz.current + 1) / qz.questions.length) * 100 + '%';
+  byId('progressBar').value = ((qz.current + 1) / qz.questions.length) * 100;
 
   byId('prevBtn').disabled = (qz.current === 0);
   byId('nextBtn').disabled = (qz.current === qz.questions.length - 1);
 
   const selected = qz.answers[qz.current];
   const correct = q.renderOptions?.findIndex((o) => o.correct) ?? -1;
-
   const showFeedback = qz.practiceMode && selected != null;
-  const practiceFeedback = showFeedback
-    ? '<div class="badge ' + (selected === correct ? 'correct' : 'incorrect') + '">' + (selected === correct ? 'CORRECT' : 'INCORRECT (Answer: ' + (correct + 1) + ')') + '</div>'
-    : '';
-
-  const html = '<h3>' + escapeHtml(q.question) + '</h3>' +
-    renderMedia(q.media, 'question-media') +
-    '<div class="options">' +
-    q.renderOptions.map((opt, idx) =>
-      '<button class="option ' + (selected === idx ? 'selected' : '') + '" data-opt="' + idx + '">' +
-      '<div><strong>' + (idx + 1) + '.</strong> ' + escapeHtml(opt.text || '(Media option)') + '</div>' +
-      renderMedia(opt.media, 'option-media') +
-      '</button>'
-    ).join('') +
-    '</div>' +
-    practiceFeedback;
 
   const container = byId('questionContainer');
-  container.innerHTML = html;
-  container.querySelectorAll('[data-opt]').forEach((btn) => btn.onclick = () => {
-    qz.answers[qz.current] = Number(btn.dataset.opt);
-    persistActiveQuiz();
-    renderQuestion();
+  container.innerHTML = '';
+
+  // Question text
+  container.appendChild(createEl('h3', [], q.question));
+
+  // Question media
+  const qMedia = renderMedia(q.media, 'question-media');
+  if (qMedia) container.appendChild(qMedia);
+
+  // Options
+  const optionsDiv = createEl('div', ['options']);
+  q.renderOptions.forEach((opt, idx) => {
+    const btnClasses = ['option'];
+    if (selected === idx) btnClasses.push('selected');
+    const btn = createEl('button', btnClasses);
+
+    const textDiv = createEl('div', [], '');
+    const strong = createEl('strong', [], (idx + 1) + '. ');
+    textDiv.appendChild(strong);
+    textDiv.appendChild(document.createTextNode(opt.text || '(Media option)'));
+    btn.appendChild(textDiv);
+
+    const optMedia = renderMedia(opt.media, 'option-media');
+    if (optMedia) btn.appendChild(optMedia);
+
+    btn.addEventListener('click', () => {
+      qz.answers[qz.current] = idx;
+      persistActiveQuiz();
+      renderQuestion();
+    });
+
+    optionsDiv.appendChild(btn);
   });
+  container.appendChild(optionsDiv);
+
+  // Feedback
+  if (showFeedback) {
+    const badgeClass = selected === correct ? 'correct' : 'incorrect';
+    const badgeText = selected === correct ? 'CORRECT' : 'INCORRECT (Answer: ' + (correct + 1) + ')';
+    container.appendChild(createEl('div', ['badge', badgeClass], badgeText));
+  }
+
+  // Accessibility announcement
+  byId('ariaStatus').textContent = `Question ${qz.current + 1} of ${qz.questions.length}. ${q.question}`;
 
   byId('markBtn').disabled = qz.examMode;
   byId('bookmarkBtn').disabled = qz.examMode;
   byId('bookmarkBtn').textContent = getBookmarks().includes(q.id) ? 'Bookmarked' : 'Bookmark';
   updatePalette();
 
-  // Scroll to top of question after render — delay ensures DOM is fully painted
-  setTimeout(() => {
-    scrollToQuestion();
-  }, 50);
+  requestAnimationFrame(() => scrollToQuestion());
 }
 
+/* ---------- Timer (Date.now() delta) ---------- */
 function startTimer() {
   if (!state.quiz?.timedMode) { byId('timerWrap').classList.add('hidden'); return; }
   byId('timerWrap').classList.remove('hidden');
   clearInterval(state.quiz.timerId);
+
+  let lastTick = Date.now();
   state.quiz.timerId = setInterval(() => {
-    state.quiz.elapsed += 1;
-    state.timerPersistCounter += 1;
-    byId('timer').textContent = formatTime(state.quiz.elapsed);
-    if (state.timerPersistCounter >= CONSTANTS.TIMER_PERSIST_INTERVAL) {
-      state.timerPersistCounter = 0;
-      persistActiveQuiz();
+    const now = Date.now();
+    const delta = Math.floor((now - lastTick) / 1000);
+    if (delta > 0) {
+      state.quiz.elapsed += delta;
+      lastTick = now;
+      state.timerPersistCounter += delta;
+      byId('timer').textContent = formatTime(state.quiz.elapsed);
+      if (state.timerPersistCounter >= CONSTANTS.TIMER_PERSIST_INTERVAL) {
+        state.timerPersistCounter = 0;
+        persistActiveQuiz();
+      }
     }
   }, 1000);
 }
@@ -430,6 +485,7 @@ function persistActiveQuiz() {
   });
 }
 
+/* ---------- Review List (DOM API) ---------- */
 function buildReviewList(filter = 'all', search = '') {
   const qz = state.quiz;
   if (!qz) return;
@@ -447,27 +503,49 @@ function buildReviewList(filter = 'all', search = '') {
     return (q.question + ' ' + q.bankFile).toLowerCase().includes(term);
   });
 
-  byId('reviewList').innerHTML = filtered.map(({ q, i }) => {
+  const list = byId('reviewList');
+  list.innerHTML = '';
+
+  if (!filtered.length) {
+    list.appendChild(createEl('p', ['muted'], 'No questions match this filter.'));
+    return;
+  }
+
+  filtered.forEach(({ q, i }) => {
     const user = qz.answers[i];
     const correct = q.renderOptions?.findIndex((o) => o.correct) ?? -1;
     const status = user == null ? 'unanswered' : user === correct ? 'correct' : 'incorrect';
     const timeSpent = getQuestionTime(qz, i);
-    const timeHtml = timeSpent > 0 ? '<span class="pill count-pill">⏱ ' + formatShortTime(timeSpent) + '</span>' : '';
 
-    return '<article class="review-card">' +
-      '<div class="badge ' + status + '">' + status.toUpperCase() + '</div>' +
-      (qz.marked[i] ? '<div class="badge">MARKED</div>' : '') +
-      timeHtml +
-      '<h4>Q' + (i + 1) + '. ' + escapeHtml(q.question) + '</h4>' +
-      renderMedia(q.media, 'question-media') +
-      '<div class="options">' +
-      q.renderOptions.map((opt, idx) => {
-        const cls = idx === correct ? 'correct' : (idx === user && user !== correct ? 'incorrect' : '');
-        return '<div class="option ' + cls + '"><strong>' + (idx + 1) + '.</strong> ' + escapeHtml(opt.text || '(Media option)') + renderMedia(opt.media, 'option-media') + '</div>';
-      }).join('') +
-      '</div>' +
-      '</article>';
-  }).join('') || '<p class="muted">No questions match this filter.</p>';
+    const card = createEl('article', ['review-card']);
+
+    card.appendChild(createEl('div', ['badge', status], status.toUpperCase()));
+    if (qz.marked[i]) {
+      card.appendChild(createEl('div', ['badge'], 'MARKED'));
+    }
+    if (timeSpent > 0) {
+      card.appendChild(createEl('span', ['pill', 'count-pill'], '⏱ ' + formatShortTime(timeSpent)));
+    }
+
+    card.appendChild(createEl('h4', [], 'Q' + (i + 1) + '. ' + q.question));
+
+    const qMedia = renderMedia(q.media, 'question-media');
+    if (qMedia) card.appendChild(qMedia);
+
+    const optionsDiv = createEl('div', ['options']);
+    q.renderOptions.forEach((opt, idx) => {
+      const cls = idx === correct ? 'correct' : (idx === user && user !== correct ? 'incorrect' : '');
+      const optDiv = createEl('div', ['option', cls].filter(Boolean));
+      optDiv.appendChild(createEl('strong', [], (idx + 1) + '. '));
+      optDiv.appendChild(document.createTextNode(opt.text || '(Media option)'));
+      const optMedia = renderMedia(opt.media, 'option-media');
+      if (optMedia) optDiv.appendChild(optMedia);
+      optionsDiv.appendChild(optDiv);
+    });
+    card.appendChild(optionsDiv);
+
+    list.appendChild(card);
+  });
 }
 
 function calculateResult(qz) {
@@ -488,6 +566,7 @@ function calculateResult(qz) {
   };
 }
 
+/* ---------- Submit Quiz (DOM API) ---------- */
 function submitQuiz() {
   const qz = state.quiz;
   const answered = qz.answers.filter((x) => x != null).length;
@@ -500,18 +579,29 @@ function submitQuiz() {
   const payload = { ...result, bankName: qz.bank.title, date: new Date().toISOString(), elapsed: qz.elapsed };
   localStorage.removeItem(STORAGE_KEYS.activeQuiz);
 
-  byId('resultSummary').innerHTML = '<div class="result-details">' +
-    '<div>Quiz Source: <strong>' + escapeHtml(payload.bankName) + '</strong></div>' +
-    '<div>Completion Date: ' + new Date(payload.date).toLocaleString() + '</div>' +
-    '<div>Total Duration: ' + formatTime(payload.elapsed) + '</div>' +
-    '<div>Total Items: ' + payload.total + '</div>' +
-    '<div>Correct: ' + payload.correct + '</div>' +
-    '<div>Incorrect: ' + payload.incorrect + '</div>' +
-    '<div>Skipped: ' + payload.unanswered + '</div>' +
-    '<div>Completion Rate: ' + payload.attempted + ' of ' + payload.total + '</div>' +
-    '<div>Overall Accuracy: ' + payload.accuracy.toFixed(2) + '%</div>' +
-    '<div>Final Score: ' + payload.score.toFixed(2) + '%</div>' +
-    '</div>';
+  const summary = byId('resultSummary');
+  summary.innerHTML = '';
+  const details = createEl('div', ['result-details']);
+
+  const addDetail = (label, value) => {
+    const div = createEl('div', [], '');
+    div.appendChild(document.createTextNode(label + ' '));
+    div.appendChild(createEl('strong', [], value));
+    details.appendChild(div);
+  };
+
+  addDetail('Quiz Source:', payload.bankName);
+  addDetail('Completion Date:', new Date(payload.date).toLocaleString());
+  addDetail('Total Duration:', formatTime(payload.elapsed));
+  addDetail('Total Items:', String(payload.total));
+  addDetail('Correct:', String(payload.correct));
+  addDetail('Incorrect:', String(payload.incorrect));
+  addDetail('Skipped:', String(payload.unanswered));
+  addDetail('Completion Rate:', payload.attempted + ' of ' + payload.total);
+  addDetail('Overall Accuracy:', payload.accuracy.toFixed(2) + '%');
+  addDetail('Final Score:', payload.score.toFixed(2) + '%');
+
+  summary.appendChild(details);
 
   qz.lastResult = payload;
   showView('resultsView');
@@ -609,7 +699,7 @@ function downloadFile(name, content, type = 'text/plain') {
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
-  a.style.display = 'none';
+  a.classList.add('hidden');
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
@@ -652,22 +742,8 @@ function bindGlobalEvents() {
   };
 
   byId('resumeBtn').onclick = () => resumeQuiz(true);
-  byId('prevBtn').onclick = () => { 
-    if (state.quiz.current > 0) { 
-      state.quiz.current -= 1; 
-      scrollToQuestion(); 
-      renderQuestion(); 
-      persistActiveQuiz(); 
-    } 
-  };
-  byId('nextBtn').onclick = () => { 
-    if (state.quiz.current < state.quiz.questions.length - 1) { 
-      state.quiz.current += 1; 
-      scrollToQuestion(); 
-      renderQuestion(); 
-      persistActiveQuiz(); 
-    } 
-  };
+  byId('prevBtn').onclick = () => { if (state.quiz.current > 0) { state.quiz.current -= 1; renderQuestion(); persistActiveQuiz(); } };
+  byId('nextBtn').onclick = () => { if (state.quiz.current < state.quiz.questions.length - 1) { state.quiz.current += 1; renderQuestion(); persistActiveQuiz(); } };
   byId('markBtn').onclick = () => { state.quiz.marked[state.quiz.current] = !state.quiz.marked[state.quiz.current]; renderQuestion(); persistActiveQuiz(); };
   byId('bookmarkBtn').onclick = () => {
     const q = state.quiz.questions[state.quiz.current];
@@ -687,24 +763,39 @@ function bindGlobalEvents() {
     }
   };
 
-  byId('reviewBtn').onclick = () => { buildReviewList('all'); showView('reviewView'); };
+  byId('reviewBtn').onclick = () => { state.reviewOrigin = 'resultsView'; buildReviewList('all'); showView('reviewView'); };
   byId('reviewFilter').onchange = () => buildReviewList(byId('reviewFilter').value, byId('reviewSearch').value);
   byId('reviewSearch').oninput = () => buildReviewList(byId('reviewFilter').value, byId('reviewSearch').value);
-  byId('reviewBackBtn').onclick = () => showView('resultsView');
+  byId('reviewBackBtn').onclick = () => showView(state.reviewOrigin || 'resultsView');
 
   byId('downloadCsvBtn').onclick = () => downloadFile('result.csv', csvFromResult(state.quiz.lastResult), 'text/csv');
   byId('downloadJsonBtn').onclick = () => downloadFile('result.json', JSON.stringify(state.quiz.lastResult, null, 2), 'application/json');
   byId('printBtn').onclick = () => window.print();
   byId('backHomeBtn').onclick = () => { showView('dashboard'); state.quiz = null; };
 
+  /* ---------- Bookmarks Manager (DOM API) ---------- */
   byId('manageBookmarksBtn').onclick = () => {
+    state.reviewOrigin = 'dashboard';
     const bookmarks = new Set(getBookmarks());
     const bankQuestions = Object.values(state.parsedBanks).flat();
     const marked = bankQuestions.filter((q) => bookmarks.has(q.id));
-    byId('reviewList').innerHTML = marked.map((q, i) => {
-      const bankTitle = state.metadata.find((b) => b.file === q.bankFile)?.title || 'Question Bank';
-      return '<article class="review-card"><h4>' + (i + 1) + '. ' + escapeHtml(q.question) + '</h4>' + renderMedia(q.media) + '<div class="bank-card-badges"><span class="pill subject-pill">' + escapeHtml(bankTitle) + '</span></div></article>';
-    }).join('') || '<p class="muted">No bookmarks yet.</p>';
+    const list = byId('reviewList');
+    list.innerHTML = '';
+    if (!marked.length) {
+      list.appendChild(createEl('p', ['muted'], 'No bookmarks yet.'));
+    } else {
+      marked.forEach((q, i) => {
+        const bankTitle = state.metadata.find((b) => b.file === q.bankFile)?.title || 'Question Bank';
+        const card = createEl('article', ['review-card']);
+        card.appendChild(createEl('h4', [], (i + 1) + '. ' + q.question));
+        const qMedia = renderMedia(q.media);
+        if (qMedia) card.appendChild(qMedia);
+        const badges = createEl('div', ['bank-card-badges']);
+        badges.appendChild(createEl('span', ['pill', 'subject-pill'], bankTitle));
+        card.appendChild(badges);
+        list.appendChild(card);
+      });
+    }
     showView('reviewView');
   };
 
@@ -807,6 +898,7 @@ function resumeQuiz(confirmedByUser = false) {
   cacheActiveQuizAssets(state.quiz);
 }
 
+/* ---------- Bank List (DOM API) ---------- */
 function renderBankList() {
   const search = byId('bankSearch').value.trim().toLowerCase();
   let rows = [...state.metadata].filter((b) => {
@@ -815,27 +907,46 @@ function renderBankList() {
   });
   rows.sort((a, b) => a.title.localeCompare(b.title));
 
-  byId('bankList').innerHTML = rows.map((b) => {
-    const totalCount = state.bankCounts[b.file];
-    return '<article class="bank-card ' + (state.selectedBank?.file === b.file ? 'selected' : '') + '" data-bank="' + escapeHtml(b.file) + '">' +
-      '<div class="bank-card-title">' + escapeHtml(b.title) + '</div>' +
-      '<div class="bank-card-badges"><span class="pill count-pill">' + (totalCount !== undefined ? totalCount + ' MCQs' : '0 MCQs') + '</span></div>' +
-      '</article>';
-  }).join('') || '<p class="muted">No banks found.</p>';
+  const bankList = byId('bankList');
+  bankList.innerHTML = '';
 
-  byId('bankList').querySelectorAll('[data-bank]').forEach((card) => card.onclick = () => {
-    const bankFile = card.dataset.bank;
-    state.selectedBank = state.metadata.find((x) => x.file === bankFile);
-    byId('selectedBankLabel').textContent = state.selectedBank?.title || 'None Selected';
-    byId('startQuizBtn').disabled = !state.selectedBank;
-    renderBankList();
+  if (!rows.length) {
+    bankList.appendChild(createEl('p', ['muted'], 'No banks found.'));
+    return;
+  }
+
+  rows.forEach((b) => {
+    const totalCount = state.bankCounts[b.file];
+    const isSelected = state.selectedBank?.file === b.file;
+
+    const card = createEl('article', ['bank-card', isSelected ? 'selected' : null].filter(Boolean));
+    card.dataset.bank = b.file;
+
+    const title = createEl('div', ['bank-card-title'], b.title);
+    const badges = createEl('div', ['bank-card-badges']);
+    const pill = createEl('span', ['pill', 'count-pill'], totalCount !== undefined ? totalCount + ' MCQs' : '0 MCQs');
+    badges.appendChild(pill);
+
+    card.appendChild(title);
+    card.appendChild(badges);
+
+    card.addEventListener('click', () => {
+      state.selectedBank = state.metadata.find((x) => x.file === b.file);
+      byId('selectedBankLabel').textContent = state.selectedBank?.title || 'None Selected';
+      byId('startQuizBtn').disabled = !state.selectedBank;
+      renderBankList();
+    });
+
+    bankList.appendChild(card);
   });
 
   updateResumeButtonVisibility();
 }
 
 async function loadBanks() {
-  byId('bankList').innerHTML = '<p class="muted">Loading question banks...</p>';
+  const bankList = byId('bankList');
+  bankList.innerHTML = '';
+  bankList.appendChild(createEl('p', ['muted'], 'Loading question banks...'));
 
   const metadataRes = await fetch('metadata.json');
   if (!metadataRes.ok) throw new Error('Invalid metadata.json');

@@ -118,8 +118,8 @@ button.secondary:hover { background: color-mix(in srgb, var(--accent) 8%, transp
 
 .quiz-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; font-size: 1rem; color: var(--text-dark); }
 .quiz-counter { font-weight: 700; background: var(--card); border: 1px solid var(--border); padding: 0.35rem 0.75rem; border-radius: var(--radius-sm); }
+
 .progress-wrap { height: 0.6rem; background: var(--border); border-radius: 999px; overflow: hidden; margin-bottom: 1.5rem; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05); }
-.progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-light)); border-radius: 999px; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 
 .question-container { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; box-shadow: var(--shadow-lg); margin-bottom: 1.5rem; }
 .question-container h3 { margin-top: 0; margin-bottom: 0.75rem; font-size: 1.15rem; font-weight: 700; color: var(--text-dark); letter-spacing: -0.01em; }
@@ -324,6 +324,56 @@ button.secondary:hover { background: color-mix(in srgb, var(--accent) 8%, transp
 }
 
 .hidden { display: none !important; }
+
+/* === NEW UTILITY CLASSES === */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.danger-text {
+  color: var(--danger);
+  border-color: var(--border);
+}
+
+.cursor-zoom {
+  cursor: zoom-in;
+}
+
+/* Semantic <progress> bar styling */
+progress.progress-bar {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 0.6rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  display: block;
+}
+progress.progress-bar::-webkit-progress-bar {
+  background: var(--border);
+  border-radius: 999px;
+}
+progress.progress-bar::-webkit-progress-value {
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
+  border-radius: 999px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+progress.progress-bar::-moz-progress-bar {
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
+  border-radius: 999px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
 
 @media print {
   .topbar, .quiz-actions, .palette-wrapper, .actions-row { display: none !important; }
