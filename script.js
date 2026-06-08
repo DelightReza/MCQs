@@ -66,6 +66,120 @@ function writeJson(key, value) {
     console.warn('LocalStorage save failed:', e);
   }
 }
+/* ---------- Storage Info & Cache Management ---------- */
+function calculateLocalStorageSize() {
+  let totalSize = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    const value = localStorage.getItem(key);
+    totalSize += (key.length + value.length) * 2; // UTF-16 = 2 bytes per char
+  }
+  return totalSize;
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+async function getStorageEstimate() {
+  try {
+    if ('storage' in navigator && 'estimate' in navigator.storage) {
+      const estimate = await navigator.storage.estimate();
+      return {
+        usage: estimate.usage || 0,
+        quota: estimate.quota || 0,
+        available: (estimate.quota || 0) - (estimate.usage || 0)
+      };
+    }
+  } catch (e) {
+    console.warn('Storage estimate failed:', e);
+  }
+  return null;
+}
+
+function renderStorageInfo() {
+  const container = byId('storageInfo');
+  if (!container) return;
+
+  const lsSize = calculateLocalStorageSize();
+  const lsHTML = `
+    <div class="storage-row">
+      <span>localStorage:</span>
+      <strong>${formatBytes(lsSize)}</strong>
+    </div>
+  `;
+
+  getStorageEstimate().then(estimate => {
+    let estimateHTML = '';
+    if (estimate) {
+      const percent = estimate.quota > 0 ? ((estimate.usage / estimate.quota) * 100).toFixed(1) : 0;
+      estimateHTML = `
+        <div class="storage-row">
+          <span>Total Storage Used:</span>
+          <strong>${formatBytes(estimate.usage)}</strong>
+        </div>
+        <div class="storage-row">
+          <span>Storage Quota:</span>
+          <strong>${formatBytes(estimate.quota)}</strong>
+        </div>
+        <div class="storage-row">
+          <span>Available:</span>
+          <strong>${formatBytes(estimate.available)}</strong>
+        </div>
+        <div class="storage-bar-wrap">
+          <div class="storage-bar" style="width: ${percent}%"></div>
+          <span class="storage-bar-text">${percent}% used</span>
+        </div>
+      `;
+    }
+    container.innerHTML = lsHTML + estimateHTML;
+  });
+}
+
+async function clearAppCache() {
+  if (!confirm('Clear all cached data? This will remove saved quiz progress, bookmarks, theme preference, and offline assets. This action cannot be undone.')) return;
+
+  // Clear localStorage
+  const keysToKeep = []; // Add any keys you want to preserve here
+  const allKeys = Object.keys(localStorage);
+  allKeys.forEach(key => {
+    if (!keysToKeep.includes(key)) {
+      localStorage.removeItem(key);
+    }
+  });
+
+  // Clear Cache API
+  if ('caches' in window) {
+    try {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+    } catch (e) {
+      console.warn('Cache clearing failed:', e);
+    }
+  }
+
+  // Clear sessionStorage
+  sessionStorage.clear();
+
+  // Reset state
+  state.quiz = null;
+  state.selectedBank = null;
+  state.bookmarkReviewPage = 0;
+  state.bookmarkReviewMode = false;
+
+  // Update UI
+  updateResumeButtonVisibility();
+  renderBankList();
+  renderStorageInfo();
+
+  alert('All cached data cleared successfully. The page will now reload.');
+  window.location.reload();
+}
+
 
 function normalizePath(path) { return path?.trim().replace(/^\.\//, '') || ''; }
 
@@ -272,6 +386,13 @@ function showView(id) {
   if (target) {
     target.classList.add('active');
     writeJson('uqp_current_view', id);
+    // Save review mode context so refresh restores correctly
+    writeJson('uqp_review_mode', {
+      bookmarkMode: state.bookmarkReviewMode,
+      origin: state.reviewOrigin || 'dashboard',
+      filter: byId('reviewFilter')?.value || 'all',
+      search: byId('reviewSearch')?.value || ''
+    });
     if (history.state?.view !== id) {
       history.pushState({ view: id }, '', window.location.pathname + window.location.search);
     }
@@ -986,6 +1107,8 @@ function bindGlobalEvents() {
     }
   };
 
+  byId('clearCacheBtn').onclick = clearAppCache;
+
   byId('paletteScrollLeft').onclick = () => scrollPalette(-1);
   byId('paletteScrollRight').onclick = () => scrollPalette(1);
 
@@ -1203,9 +1326,38 @@ async function init() {
 
   if (savedQuiz && lastView === 'quizView') {
     resumeQuiz(true);
+  } else if (lastView === 'reviewView') {
+    // Restore review mode context from saved state
+    const reviewMode = readJson('uqp_review_mode', null);
+    if (reviewMode?.bookmarkMode) {
+      // Was in bookmark review mode
+      state.reviewOrigin = reviewMode.origin || 'dashboard';
+      state.bookmarkReviewMode = true;
+      state.bookmarkReviewPage = 0;
+      byId('reviewFilter').classList.add('hidden');
+      byId('reviewSearch').classList.add('hidden');
+      byId('reviewBackBtn').textContent = 'Back to Dashboard';
+      renderBookmarkPage();
+      showView('reviewView');
+    } else if (state.quiz?.lastResult) {
+      // Was in results review mode
+      state.reviewOrigin = reviewMode?.origin || 'resultsView';
+      state.bookmarkReviewMode = false;
+      byId('reviewFilter').classList.remove('hidden');
+      byId('reviewSearch').classList.remove('hidden');
+      byId('reviewBackBtn').textContent = 'Back';
+      buildReviewList(reviewMode?.filter || 'all', reviewMode?.search || '');
+      showView('reviewView');
+    } else {
+      // No quiz result available, go dashboard
+      showView('dashboard');
+    }
   } else {
     showView(lastView === 'quizView' ? 'dashboard' : lastView);
   }
+
+  // Render storage info on homepage
+  renderStorageInfo();
 }
 
 init().catch((e) => alert('Initialization failed: ' + e.message));

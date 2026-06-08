@@ -382,3 +382,63 @@ progress.progress-bar::-moz-progress-bar {
   body { background: white; color: black; }
   .panel { box-shadow: none; border: 1px solid #ccc; }
 }
+
+/* === STORAGE INFO PANEL === */
+.storage-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.storage-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.storage-row:last-child {
+  border-bottom: none;
+}
+
+.storage-row span {
+  color: var(--text-muted);
+}
+
+.storage-row strong {
+  color: var(--text-dark);
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+.storage-bar-wrap {
+  position: relative;
+  height: 1.25rem;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 0.25rem;
+}
+
+.storage-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
+  border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 4px;
+}
+
+.storage-bar-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  text-shadow: 0 0 2px var(--card);
+  white-space: nowrap;
+}
