@@ -416,7 +416,6 @@ function paletteClass(idx) {
   const qz = state.quiz;
   if (idx === qz.current) return 'status-current';
   if (!qz.visited[idx]) return 'status-notvisited';
-  if (qz.marked[idx]) return 'status-marked';
   if (qz.answers[idx] != null) return 'status-answered';
   return 'status-unanswered';
 }
@@ -556,7 +555,6 @@ function renderQuestion() {
   byId('ariaStatus').textContent = `Question ${qz.current + 1} of ${qz.questions.length}. ${q.question}`;
 
   // In exam mode: hide bookmark during quiz, but mark is still useful for review
-  byId('markBtn').disabled = false;
   byId('bookmarkBtn').disabled = false;
   if (qz.examMode) {
     byId('bookmarkBtn').classList.add('hidden');
@@ -604,7 +602,6 @@ function persistActiveQuiz() {
     optionOrders: qz.questions.map((q) => (q.renderOptions || []).map((opt) => opt._orig)),
     answers: qz.answers,
     visited: qz.visited,
-    marked: qz.marked,
     current: qz.current,
     elapsed: qz.elapsed,
     startedAt: qz.startedAt,
@@ -627,7 +624,7 @@ function buildReviewList(filter = 'all', search = '') {
     const isCorrect = user === correct;
     if (filter === 'incorrect' && (user == null || isCorrect)) return false;
     if (filter === 'unanswered' && user != null) return false;
-    if (filter === 'marked' && !qz.marked[i]) return false;
+
     if (filter === 'correct' && !isCorrect) return false;
     if (!term) return true;
     return (q.question + ' ' + q.bankFile).toLowerCase().includes(term);
@@ -650,9 +647,7 @@ function buildReviewList(filter = 'all', search = '') {
     const card = createEl('article', ['review-card']);
 
     card.appendChild(createEl('div', ['badge', status], status.toUpperCase()));
-    if (qz.marked[i]) {
-      card.appendChild(createEl('div', ['badge'], 'MARKED'));
-    }
+
     // Bookmark toggle in review mode
     const isBookmarked = getBookmarks().includes(q.id);
     const bmBtn = createEl('button', ['secondary', isBookmarked ? 'danger-text' : ''], isBookmarked ? '✕ Unbookmark' : '🔖 Bookmark', {
@@ -715,8 +710,7 @@ function submitQuiz() {
   const qz = state.quiz;
   const answered = qz.answers.filter((x) => x != null).length;
   const unanswered = qz.questions.length - answered;
-  const marked = qz.marked.filter(Boolean).length;
-  if (!confirm('Submit quiz?\nAnswered: ' + answered + '\nUnanswered: ' + unanswered + '\nMarked: ' + marked)) return;
+  if (!confirm('Submit quiz?\nAnswered: ' + answered + '\nUnanswered: ' + unanswered)) return;
 
   stopTimer();
   const result = calculateResult(qz);
@@ -807,7 +801,7 @@ function prepareQuiz(bank, questions, settings) {
     current: 0,
     answers: Array(selectedQuestions.length).fill(null),
     visited: Array(selectedQuestions.length).fill(false),
-    marked: Array(selectedQuestions.length).fill(false),
+
     elapsed: 0,
     startedAt: Date.now(),
     timedMode: practiceMode ? false : settings.timedMode,
@@ -1039,7 +1033,7 @@ function bindGlobalEvents() {
   byId('resumeBtn').onclick = () => resumeQuiz(true);
   byId('prevBtn').onclick = () => { if (state.quiz.current > 0) { state.quiz.current -= 1; renderQuestion(); persistActiveQuiz(); } };
   byId('nextBtn').onclick = () => { if (state.quiz.current < state.quiz.questions.length - 1) { state.quiz.current += 1; renderQuestion(); persistActiveQuiz(); } };
-  byId('markBtn').onclick = () => { state.quiz.marked[state.quiz.current] = !state.quiz.marked[state.quiz.current]; renderQuestion(); persistActiveQuiz(); };
+
   byId('bookmarkBtn').onclick = () => {
     const q = state.quiz.questions[state.quiz.current];
     const s = new Set(getBookmarks());
@@ -1136,7 +1130,7 @@ function bindGlobalEvents() {
     }
     if (e.key === 'ArrowLeft') byId('prevBtn').click();
     if (e.key === 'ArrowRight') byId('nextBtn').click();
-    if (e.key.toLowerCase() === 'm') byId('markBtn').click();
+
     if (e.key.toLowerCase() === 's') byId('submitBtn').click();
     if (e.key.toLowerCase() === 'f' && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
   });
@@ -1177,7 +1171,7 @@ function resumeQuiz(confirmedByUser = false) {
     current: saved.current || 0,
     answers: saved.answers || Array(questions.length).fill(null),
     visited: saved.visited || Array(questions.length).fill(false),
-    marked: saved.marked || Array(questions.length).fill(false),
+
     elapsed: saved.elapsed || 0,
     startedAt: saved.startedAt || Date.now(),
     timedMode: saved.timedMode,

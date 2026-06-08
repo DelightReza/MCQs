@@ -261,22 +261,6 @@ button.secondary:hover { background: color-mix(in srgb, var(--accent) 8%, transp
   background: var(--danger);
 }
 
-.palette-item.status-marked {
-  border-color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 8%, var(--card));
-}
-.palette-item.status-marked .palette-dot {
-  background: var(--warning);
-}
-
-.palette-item.status-notvisited {
-  opacity: 0.5;
-  background: var(--bg);
-}
-.palette-item.status-notvisited .palette-dot {
-  background: var(--text-muted);
-}
-
 /* Pulse animation for current */
 @keyframes pulse-ring {
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); }
