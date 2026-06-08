@@ -15,7 +15,8 @@ const CONSTANTS = {
   TIMER_PERSIST_INTERVAL: 5,
   MAX_STORAGE_MB: 4.5,
   MAX_BANK_SIZE: 5000,
-  PALETTE_SCROLL_AMOUNT: 200
+  PALETTE_SCROLL_AMOUNT: 200,
+  REVIEW_PAGE_SIZE: 10
 };
 
 const state = {
@@ -24,11 +25,13 @@ const state = {
   selectedBank: null,
   parsedBanks: {},
   quiz: null,
-  timerPersistCounter: 0
+  timerPersistCounter: 0,
+  bookmarkReviewPage: 0,
+  bookmarkReviewMode: false
 };
 
 const byId = (id) => document.getElementById(id);
-const escapeHtml = (s = '') => s.replace(/[&<<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const escapeHtml = (s = '') => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* ---------- DOM Helper ---------- */
 function createEl(tag, classes = [], text = '', attrs = {}) {
@@ -431,8 +434,14 @@ function renderQuestion() {
   // Accessibility announcement
   byId('ariaStatus').textContent = `Question ${qz.current + 1} of ${qz.questions.length}. ${q.question}`;
 
-  byId('markBtn').disabled = qz.examMode;
-  byId('bookmarkBtn').disabled = qz.examMode;
+  // In exam mode: hide bookmark during quiz, but mark is still useful for review
+  byId('markBtn').disabled = false;
+  byId('bookmarkBtn').disabled = false;
+  if (qz.examMode) {
+    byId('bookmarkBtn').classList.add('hidden');
+  } else {
+    byId('bookmarkBtn').classList.remove('hidden');
+  }
   byId('bookmarkBtn').textContent = getBookmarks().includes(q.id) ? 'Bookmarked' : 'Bookmark';
   updatePalette();
 
@@ -523,6 +532,20 @@ function buildReviewList(filter = 'all', search = '') {
     if (qz.marked[i]) {
       card.appendChild(createEl('div', ['badge'], 'MARKED'));
     }
+    // Bookmark toggle in review mode
+    const isBookmarked = getBookmarks().includes(q.id);
+    const bmBtn = createEl('button', ['secondary', isBookmarked ? 'danger-text' : ''], isBookmarked ? '✕ Unbookmark' : '🔖 Bookmark', {
+      onclick: () => {
+        const s = new Set(getBookmarks());
+        if (s.has(q.id)) s.delete(q.id); else s.add(q.id);
+        setBookmarks([...s]);
+        buildReviewList(byId('reviewFilter').value, byId('reviewSearch').value);
+      }
+    });
+    bmBtn.style.marginLeft = '0.5rem';
+    bmBtn.style.fontSize = '0.75rem';
+    bmBtn.style.padding = '0.25rem 0.5rem';
+    card.appendChild(bmBtn);
     if (timeSpent > 0) {
       card.appendChild(createEl('span', ['pill', 'count-pill'], '⏱ ' + formatShortTime(timeSpent)));
     }
@@ -711,6 +734,157 @@ function updateResumeButtonVisibility() {
   byId('clearResumeBtn').classList.toggle('hidden', !activeQuiz);
 }
 
+/* ---------- Bookmarks Manager with Pagination & Options ---------- */
+function renderBookmarkPage() {
+  const bookmarks = new Set(getBookmarks());
+  const bankQuestions = Object.values(state.parsedBanks).flat();
+  const marked = bankQuestions.filter((q) => bookmarks.has(q.id));
+
+  const pageSize = CONSTANTS.REVIEW_PAGE_SIZE;
+  const totalPages = Math.ceil(marked.length / pageSize) || 1;
+  const page = Math.min(state.bookmarkReviewPage, totalPages - 1);
+  state.bookmarkReviewPage = page;
+
+  const start = page * pageSize;
+  const end = start + pageSize;
+  const pageItems = marked.slice(start, end);
+
+  const list = byId('reviewList');
+  list.innerHTML = '';
+
+  if (!marked.length) {
+    list.appendChild(createEl('p', ['muted'], 'No bookmarks yet.'));
+    return;
+  }
+
+  // Page info
+  const pageInfo = createEl('div', ['muted'], `Showing ${start + 1}-${Math.min(end, marked.length)} of ${marked.length} bookmarked questions (Page ${page + 1} of ${totalPages})`);
+  pageInfo.style.marginBottom = '1rem';
+  list.appendChild(pageInfo);
+
+  // Start quiz from bookmarks button
+  const quizBtn = createEl('button', [], 'Start Quiz from Bookmarks', {
+    onclick: () => startBookmarkQuiz()
+  });
+  quizBtn.style.marginBottom = '1rem';
+  list.appendChild(quizBtn);
+
+  pageItems.forEach((q, i) => {
+    const globalIdx = start + i;
+    const bankTitle = state.metadata.find((b) => b.file === q.bankFile)?.title || 'Question Bank';
+    const card = createEl('article', ['review-card']);
+
+    // Question title (full width)
+    const title = createEl('h4', [], (globalIdx + 1) + '. ' + q.question);
+    title.style.margin = '0 0 0.75rem 0';
+    card.appendChild(title);
+
+    const qMedia = renderMedia(q.media);
+    if (qMedia) card.appendChild(qMedia);
+
+    // Show options
+    const optionsDiv = createEl('div', ['options']);
+    q.options.forEach((opt, idx) => {
+      const cls = opt.correct ? 'correct' : '';
+      const optDiv = createEl('div', ['option', cls].filter(Boolean));
+      optDiv.appendChild(createEl('strong', [], (idx + 1) + '. '));
+      optDiv.appendChild(document.createTextNode(opt.text || '(Media option)'));
+      const optMedia = renderMedia(opt.media, 'option-media');
+      if (optMedia) optDiv.appendChild(optMedia);
+      optionsDiv.appendChild(optDiv);
+    });
+    card.appendChild(optionsDiv);
+
+    // Bank badge and remove button row
+    const footer = createEl('div', [], '');
+    footer.style.display = 'flex';
+    footer.style.justifyContent = 'space-between';
+    footer.style.alignItems = 'center';
+    footer.style.marginTop = '0.75rem';
+    footer.style.flexWrap = 'wrap';
+    footer.style.gap = '0.5rem';
+
+    const badges = createEl('div', ['bank-card-badges']);
+    badges.appendChild(createEl('span', ['pill', 'subject-pill'], bankTitle));
+    footer.appendChild(badges);
+
+    const removeBtn = createEl('button', ['secondary', 'danger-text'], '✕ Remove Bookmark', {
+      onclick: () => {
+        const s = new Set(getBookmarks());
+        s.delete(q.id);
+        setBookmarks([...s]);
+        renderBookmarkPage();
+      }
+    });
+    removeBtn.style.fontSize = '0.8rem';
+    removeBtn.style.padding = '0.4rem 0.75rem';
+    footer.appendChild(removeBtn);
+
+    card.appendChild(footer);
+
+
+
+    list.appendChild(card);
+  });
+
+  // Pagination controls
+  if (totalPages > 1) {
+    const pagDiv = createEl('div', ['actions-row']);
+    pagDiv.style.justifyContent = 'center';
+    pagDiv.style.marginTop = '1.5rem';
+
+    const prevBtn = createEl('button', ['secondary'], '← Previous', {
+      onclick: () => { state.bookmarkReviewPage = Math.max(0, page - 1); renderBookmarkPage(); }
+    });
+    prevBtn.disabled = page === 0;
+
+    const pageLabel = createEl('span', [], `Page ${page + 1} / ${totalPages}`);
+    pageLabel.style.padding = '0.65rem 1rem';
+    pageLabel.style.fontWeight = '600';
+
+    const nextBtn = createEl('button', ['secondary'], 'Next →', {
+      onclick: () => { state.bookmarkReviewPage = Math.min(totalPages - 1, page + 1); renderBookmarkPage(); }
+    });
+    nextBtn.disabled = page >= totalPages - 1;
+
+    pagDiv.appendChild(prevBtn);
+    pagDiv.appendChild(pageLabel);
+    pagDiv.appendChild(nextBtn);
+    list.appendChild(pagDiv);
+  }
+}
+
+function startBookmarkQuiz() {
+  const bookmarks = new Set(getBookmarks());
+  const bankQuestions = Object.values(state.parsedBanks).flat();
+  const marked = bankQuestions.filter((q) => bookmarks.has(q.id));
+
+  if (!marked.length) {
+    alert('No bookmarked questions available.');
+    return;
+  }
+
+  // Use first bank as default, or try to find matching bank
+  const firstBank = state.metadata.find((b) => b.file === marked[0].bankFile) || state.metadata[0];
+  if (!firstBank) {
+    alert('No valid bank found for bookmarked questions.');
+    return;
+  }
+
+  const settings = {
+    count: 'all',
+    shuffleQuestions: byId('shuffleQuestions')?.checked ?? true,
+    shuffleOptions: byId('shuffleOptions')?.checked ?? true,
+    timedMode: byId('timedMode')?.checked ?? true,
+    examMode: byId('examMode')?.checked ?? true,
+    practiceMode: byId('practiceMode')?.checked ?? false,
+    fullscreenMode: byId('fullscreenMode')?.checked ?? false,
+    bookmarkedOnly: true
+  };
+
+  prepareQuiz(firstBank, marked, settings);
+}
+
 function bindGlobalEvents() {
   byId('themeToggle').onclick = () => {
     const curr = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -763,10 +937,24 @@ function bindGlobalEvents() {
     }
   };
 
-  byId('reviewBtn').onclick = () => { state.reviewOrigin = 'resultsView'; buildReviewList('all'); showView('reviewView'); };
+  byId('reviewBtn').onclick = () => { 
+    state.reviewOrigin = 'resultsView'; 
+    state.bookmarkReviewMode = false;
+    // Show filter controls in results review mode
+    byId('reviewFilter').classList.remove('hidden');
+    byId('reviewSearch').classList.remove('hidden');
+    byId('reviewBackBtn').textContent = 'Back';
+    buildReviewList('all'); 
+    showView('reviewView'); 
+  };
   byId('reviewFilter').onchange = () => buildReviewList(byId('reviewFilter').value, byId('reviewSearch').value);
   byId('reviewSearch').oninput = () => buildReviewList(byId('reviewFilter').value, byId('reviewSearch').value);
-  byId('reviewBackBtn').onclick = () => showView(state.reviewOrigin || 'resultsView');
+  byId('reviewBackBtn').onclick = () => {
+    state.bookmarkReviewMode = false;
+    byId('reviewFilter').classList.remove('hidden');
+    byId('reviewSearch').classList.remove('hidden');
+    showView(state.reviewOrigin || 'resultsView');
+  };
 
   byId('downloadCsvBtn').onclick = () => downloadFile('result.csv', csvFromResult(state.quiz.lastResult), 'text/csv');
   byId('downloadJsonBtn').onclick = () => downloadFile('result.json', JSON.stringify(state.quiz.lastResult, null, 2), 'application/json');
@@ -776,26 +964,13 @@ function bindGlobalEvents() {
   /* ---------- Bookmarks Manager (DOM API) ---------- */
   byId('manageBookmarksBtn').onclick = () => {
     state.reviewOrigin = 'dashboard';
-    const bookmarks = new Set(getBookmarks());
-    const bankQuestions = Object.values(state.parsedBanks).flat();
-    const marked = bankQuestions.filter((q) => bookmarks.has(q.id));
-    const list = byId('reviewList');
-    list.innerHTML = '';
-    if (!marked.length) {
-      list.appendChild(createEl('p', ['muted'], 'No bookmarks yet.'));
-    } else {
-      marked.forEach((q, i) => {
-        const bankTitle = state.metadata.find((b) => b.file === q.bankFile)?.title || 'Question Bank';
-        const card = createEl('article', ['review-card']);
-        card.appendChild(createEl('h4', [], (i + 1) + '. ' + q.question));
-        const qMedia = renderMedia(q.media);
-        if (qMedia) card.appendChild(qMedia);
-        const badges = createEl('div', ['bank-card-badges']);
-        badges.appendChild(createEl('span', ['pill', 'subject-pill'], bankTitle));
-        card.appendChild(badges);
-        list.appendChild(card);
-      });
-    }
+    state.bookmarkReviewPage = 0;
+    state.bookmarkReviewMode = true;
+    // Hide filter controls in bookmark review mode
+    byId('reviewFilter').classList.add('hidden');
+    byId('reviewSearch').classList.add('hidden');
+    byId('reviewBackBtn').textContent = 'Back to Dashboard';
+    renderBookmarkPage();
     showView('reviewView');
   };
 
