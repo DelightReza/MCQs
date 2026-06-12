@@ -523,6 +523,17 @@ function renderQuestion() {
   q.renderOptions.forEach((opt, idx) => {
     const btnClasses = ['option'];
     if (selected === idx) btnClasses.push('selected');
+    
+    // In practice mode, lock and color options if already selected
+    if (showFeedback) {
+      btnClasses.push('locked');
+      if (idx === correct) {
+        btnClasses.push('correct');
+      } else if (selected === idx) {
+        btnClasses.push('incorrect');
+      }
+    }
+
     const btn = createEl('button', btnClasses);
 
     const textDiv = createEl('div', [], '');
@@ -535,6 +546,9 @@ function renderQuestion() {
     if (optMedia) btn.appendChild(optMedia);
 
     btn.addEventListener('click', () => {
+      // Prevent changing answers in Practice Mode once clicked
+      if (qz.practiceMode && qz.answers[qz.current] != null) return;
+      
       qz.answers[qz.current] = idx;
       persistActiveQuiz();
       renderQuestion();
@@ -1123,6 +1137,9 @@ function bindGlobalEvents() {
       const idx = Number(e.key) - 1;
       const q = state.quiz.questions[state.quiz.current];
       if (idx < q.renderOptions.length) {
+        // Prevent changing answers in Practice Mode once clicked
+        if (state.quiz.practiceMode && state.quiz.answers[state.quiz.current] != null) return;
+        
         state.quiz.answers[state.quiz.current] = idx;
         renderQuestion();
         persistActiveQuiz();

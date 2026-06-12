@@ -1,4 +1,4 @@
-# MCQs
+# QuizDroid
 
 Universal Quiz Platform built with pure HTML, CSS, and Vanilla JavaScript.
 

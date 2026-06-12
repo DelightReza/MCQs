@@ -1,6 +1,6 @@
 {
-  "name": "Universal Quiz Platform",
-  "short_name": "QuizPlatform",
+  "name": "QuizDroid",
+  "short_name": "QuizDroid",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#0d1117",

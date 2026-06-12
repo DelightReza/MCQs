@@ -133,6 +133,9 @@ button.secondary:hover { background: color-mix(in srgb, var(--accent) 8%, transp
 .option.correct { border-color: var(--success); background: color-mix(in srgb, var(--success) 6%, var(--bg)); box-shadow: 0 0 0 2px var(--success); }
 .option.incorrect { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 6%, var(--bg)); box-shadow: 0 0 0 2px var(--danger); }
 
+/* Prevents interactions on options once a decision has been committed in Practice Mode */
+.option.locked { pointer-events: none; }
+
 .quiz-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
 
 /* === HORIZONTAL SCROLLABLE PALETTE === */
