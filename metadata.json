@@ -1,5 +1,6 @@
 {
-  "question_banks": [
-    {"file": "GOS_QuizBank.txt", "title": "GOS Exam MCQs"}
-  ]
+  "name": "QuizDroid",
+  "description": "A comprehensive MCQ quiz platform featuring customizable lengths, bookmarks, and incorrect answer review tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

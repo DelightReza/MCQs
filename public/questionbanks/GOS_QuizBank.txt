@@ -2876,7 +2876,7 @@ Von Grawitz tumour
 
 ---
 
-Q: Identify following ECG: MEDIA: media/images/InferiorSTEMIwithChangesinII-IIIandaVF.png
+Q: Identify following ECG: MEDIA: public/media/images/InferiorSTEMIwithChangesinII-IIIandaVF.png
 Anteroseptal STEMI with Changes in V1-V3
 * Inferior STEMI with Changes in II, III, and aVF
 NSTEMI Affecting Leads II, III, and aV

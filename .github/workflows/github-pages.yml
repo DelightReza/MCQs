@@ -38,14 +38,26 @@ jobs:
           # otherwise, fallback to the latest commit of the branch that triggered the run (github.sha)
           ref: ${{ inputs.commit_sha || github.sha }}
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build project
+        run: npm run build
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: '.'
+          # Upload the built dist directory
+          path: './dist'
 
       - name: Deploy to GitHub Pages
         id: deployment
