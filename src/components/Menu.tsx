@@ -15,7 +15,7 @@ interface MenuProps {
   onClearCache: () => void;
   bookmarkedCount: number;
   incorrectCount: number;
-  onStartNew: (count: number, type: QuizSessionType, settings: QuizSettings) => void;
+  onStartNew: (options: { count?: number; startOption?: number; endOption?: number; }, type: QuizSessionType, settings: QuizSettings) => void;
   onStartReview: (mode: QuizMode, type: QuizSessionType, settings: QuizSettings) => void;
 }
 
@@ -37,6 +37,8 @@ export function Menu({
   const totalAvailable = selectedQBank ? selectedQBank.questions.length : 0;
   const newOptions = [10, 20, 25, 40, 50, 75, 100, 200, 500].filter(n => n <= totalAvailable);
   const [questionCount, setQuestionCount] = useState<number | 'all'>(10);
+  const [startNumber, setStartNumber] = useState<number | ''>(1);
+  const [endNumber, setEndNumber] = useState<number | ''>(10);
   const [sessionType, setSessionType] = useState<QuizSessionType>('PRACTICE');
   const [shuffleQuestions, setShuffleQuestions] = useState(true);
   const [shuffleOptions, setShuffleOptions] = useState(true);
@@ -199,23 +201,56 @@ export function Menu({
             </div>
 
             <div className="space-y-3">
-              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">3. No Of Questions</label>
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">3. No Of Questions {(!shuffleQuestions && totalAvailable > 0) && `(Max: ${totalAvailable})`}</label>
               <div className="flex flex-col sm:flex-row gap-3">
-                <select
-                  value={questionCount}
-                  onChange={(e) => setQuestionCount(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                  className="w-full sm:w-48 text-base py-3.5 px-4 rounded-xl border-2 border-stone-100 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-stone-200 outline-none transition font-medium text-stone-800 cursor-pointer appearance-none truncate"
-                  style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\\\'12\\\' height=\\\'12\\\' viewBox=\\\'0 0 12 12\\\' fill=\\\'none\\\' xmlns=\\\'http://www.w3.org/2000/svg\\\'%3E%3Cpath d=\\\'M2.5 4.5L6 8L9.5 4.5\\\' stroke=\\\'%23a8a29e\\\' stroke-width=\\\'2\\\' stroke-linecap=\\\'round\\\' stroke-linejoin=\\\'round\\\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 16px center' }}
-                >
-                  <option value={10}>10 Questions</option>
-                  <option value={20}>20 Questions</option>
-                  <option value={25}>25 Questions</option>
-                  <option value={50}>50 Questions</option>
-                  <option value={100}>100 Questions</option>
-                  <option value="all">All Questions ({totalAvailable})</option>
-                </select>
+                {shuffleQuestions ? (
+                  <select
+                    value={questionCount}
+                    onChange={(e) => setQuestionCount(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                    className="w-full sm:w-48 text-base py-3.5 px-4 rounded-xl border-2 border-stone-100 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-stone-200 outline-none transition font-medium text-stone-800 cursor-pointer appearance-none truncate"
+                    style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\\\'12\\\' height=\\\'12\\\' viewBox=\\\'0 0 12 12\\\' fill=\\\'none\\\' xmlns=\\\'http://www.w3.org/2000/svg\\\'%3E%3Cpath d=\\\'M2.5 4.5L6 8L9.5 4.5\\\' stroke=\\\'%23a8a29e\\\' stroke-width=\\\'2\\\' stroke-linecap=\\\'round\\\' stroke-linejoin=\\\'round\\\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 16px center' }}
+                  >
+                    <option value={10}>10 Questions</option>
+                    <option value={20}>20 Questions</option>
+                    <option value={25}>25 Questions</option>
+                    <option value={50}>50 Questions</option>
+                    <option value={100}>100 Questions</option>
+                    <option value="all">All Questions ({totalAvailable})</option>
+                  </select>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="number" 
+                      min={1} 
+                      max={totalAvailable} 
+                      value={startNumber} 
+                      onChange={e => setStartNumber(e.target.value ? Number(e.target.value) : '')}
+                      className="w-24 text-base py-3.5 px-3 rounded-xl border-2 border-stone-100 bg-white focus:ring-2 focus:ring-blue-500 outline-none font-medium text-center"
+                      placeholder="Start"
+                    />
+                    <span className="text-stone-500 font-medium whitespace-nowrap">to</span>
+                    <input 
+                      type="number" 
+                      min={1} 
+                      max={totalAvailable} 
+                      value={endNumber} 
+                      onChange={e => setEndNumber(e.target.value ? Number(e.target.value) : '')}
+                      className="w-24 text-base py-3.5 px-3 rounded-xl border-2 border-stone-100 bg-white focus:ring-2 focus:ring-blue-500 outline-none font-medium text-center"
+                      placeholder="End"
+                    />
+                  </div>
+                )}
                 <button
-                  onClick={() => onStartNew(questionCount === 'all' ? totalAvailable : questionCount, sessionType, getSettings())}
+                  onClick={() => {
+                    if (shuffleQuestions) {
+                      onStartNew({ count: questionCount === 'all' ? totalAvailable : questionCount as number }, sessionType, getSettings());
+                    } else {
+                      onStartNew({ 
+                        startOption: Math.max(1, Number(startNumber) || 1), 
+                        endOption: Math.max(1, Math.min(Number(endNumber) || totalAvailable, totalAvailable)) 
+                      }, sessionType, getSettings());
+                    }
+                  }}
                   className="flex-1 px-6 py-3.5 rounded-xl font-medium bg-stone-900 text-white hover:bg-stone-800 transition shadow hover:shadow-md active:scale-95 flex items-center justify-center gap-2"
                 >
                   <Play className="w-4 h-4 fill-current" /> Start Quiz

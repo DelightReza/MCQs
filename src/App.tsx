@@ -121,8 +121,17 @@ export default function App() {
     setScreen('QUIZ');
   };
 
-  const handleStartNew = (count: number, sessionType: QuizSessionType, settings: QuizSettings) => {
-    const selected = [...selectedQuestions].sort(() => 0.5 - Math.random()).slice(0, count);
+  const handleStartNew = (options: { count?: number; startOption?: number; endOption?: number; }, sessionType: QuizSessionType, settings: QuizSettings) => {
+    let selected = [...selectedQuestions];
+    if (settings.shuffleQuestions && options.count !== undefined) {
+      selected = selected.sort(() => 0.5 - Math.random()).slice(0, options.count);
+    } else if (!settings.shuffleQuestions && options.startOption !== undefined && options.endOption !== undefined) {
+      const startIndex = Math.max(0, options.startOption - 1);
+      const endIndex = options.endOption;
+      selected = selected.slice(startIndex, endIndex);
+    } else {
+      selected = selected.slice(0, options.count ?? 10);
+    }
     initSession(selected, settings, 'NEW', sessionType);
   };
 
