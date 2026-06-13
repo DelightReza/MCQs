@@ -10,7 +10,25 @@ import type { AppScreen, QuizSession, QuizMode, QuizSessionType, QBank, QuizSett
 
 export default function App() {
   const store = usePersistedRecords();
-  const [screen, setScreen] = useState<AppScreen>('MENU');
+  const [screen, setScreenState] = useState<AppScreen>('MENU');
+
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && e.state.screen) {
+        setScreenState(e.state.screen);
+      } else {
+        setScreenState('MENU');
+      }
+    };
+    window.history.replaceState({ screen: 'MENU' }, '');
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const setScreen = (newScreen: AppScreen) => {
+    window.history.pushState({ screen: newScreen }, '');
+    setScreenState(newScreen);
+  };
   
   const [qbanks, setQbanks] = useState<QBank[]>([]);
   const [qbanksLoaded, setQbanksLoaded] = useState(false);
