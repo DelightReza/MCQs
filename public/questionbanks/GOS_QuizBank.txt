@@ -2408,7 +2408,7 @@ Q: Treatment of hydatid cyst
 A.Excision of cyst
 * B.Percutaneous drainage
 C.Conservative management
-D.None*
+D.None
 
 ---
 
