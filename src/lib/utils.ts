@@ -5,7 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const isSoundEnabled = () => {
+  return localStorage.getItem('soundEnabled') !== 'false';
+};
+
 export const playCorrectSound = () => {
+  if (!isSoundEnabled()) return;
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
@@ -32,6 +37,7 @@ export const playCorrectSound = () => {
 };
 
 export const playIncorrectSound = () => {
+  if (!isSoundEnabled()) return;
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;

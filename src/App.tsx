@@ -5,6 +5,7 @@ import { usePersistedRecords } from './store/usePersistedRecords';
 import { Menu } from './components/Menu';
 import { Quiz } from './components/Quiz';
 import { Results } from './components/Results';
+import { Sun, Moon, Volume2, VolumeX } from 'lucide-react';
 import type { AppScreen, QuizSession, QuizMode, QuizSessionType, QBank, QuizSettings } from './types';
 
 export default function App() {
@@ -52,6 +53,14 @@ export default function App() {
       }
     } catch(e) {}
   }, []);
+
+  useEffect(() => {
+    if (store.theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [store.theme]);
 
   if (!store.isLoaded || !qbanksLoaded) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -188,7 +197,24 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen p-4 sm:p-8 flex items-center justify-center">
+    <div className="min-h-screen p-4 sm:p-8 flex flex-col items-center justify-center">
+      <div className="fixed top-4 right-4 flex items-center gap-2 z-50">
+        <button
+          onClick={store.toggleSound}
+          className="p-2 rounded-full hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors"
+          title={store.soundEnabled ? "Disable Sound" : "Enable Sound"}
+        >
+          {store.soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+        </button>
+        <button
+          onClick={store.toggleTheme}
+          className="p-2 rounded-full hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors"
+          title={store.theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
+        >
+          {store.theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+        </button>
+      </div>
+      
       <AnimatePresence mode="wait">
         {screen === 'MENU' && (
           <Menu

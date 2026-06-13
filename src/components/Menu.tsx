@@ -199,7 +199,7 @@ export function Menu({
             </div>
 
             <div className="space-y-3">
-              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">3. Start Standard Quiz</label>
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">3. No Of Questions</label>
               <div className="flex flex-col sm:flex-row gap-3">
                 <select
                   value={questionCount}

@@ -1,12 +1,100 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
-  @apply font-sans antialiased bg-stone-50 text-stone-900;
+  @apply font-sans antialiased text-stone-900 transition-colors duration-200 bg-stone-50;
 }
+
+.dark body {
+  @apply bg-stone-950 text-stone-100;
+}
+
+/* Dark mode mappings for common utility classes used in the app */
+.dark .bg-white {
+  @apply bg-stone-900!;
+}
+.dark .bg-stone-50 {
+  @apply bg-stone-800!;
+}
+.dark .bg-stone-100 {
+  @apply bg-stone-800!;
+}
+.dark .bg-stone-200 {
+  @apply bg-stone-700!;
+}
+.dark .text-stone-800,
+.dark .text-stone-900 {
+  @apply text-stone-50!;
+}
+.dark .text-stone-600,
+.dark .text-stone-700 {
+  @apply text-stone-300!;
+}
+.dark .text-stone-500 {
+  @apply text-stone-400!;
+}
+.dark .border-stone-100,
+.dark .border-stone-200,
+.dark .border-blue-200,
+.dark .border-emerald-200,
+.dark .border-red-200,
+.dark .border-amber-200 {
+  @apply border-stone-700!;
+}
+
+.dark .hover\:bg-stone-50:hover {
+  @apply hover:bg-stone-800!;
+}
+.dark .hover\:bg-stone-100:hover {
+  @apply hover:bg-stone-700!;
+}
+.dark .hover\:bg-stone-200:hover {
+  @apply hover:bg-stone-600!;
+}
+.dark .hover\:border-stone-200:hover,
+.dark .hover\:border-stone-300:hover {
+  @apply hover:border-stone-600!;
+}
+
+/* Fix specific highlighted backgrounds */
+.dark .bg-blue-50, .dark .bg-blue-50\/30 {
+  @apply bg-blue-900/30!;
+}
+.dark .bg-blue-100 {
+  @apply bg-blue-900/50!;
+}
+.dark .text-blue-600 {
+  @apply text-blue-400!;
+}
+
+.dark .bg-emerald-50, .dark .bg-emerald-50\/50 {
+  @apply bg-emerald-900/30!;
+}
+.dark .bg-emerald-100 {
+  @apply bg-emerald-900/50!;
+}
+
+.dark .bg-red-50, .dark .bg-red-50\/50 {
+  @apply bg-red-900/30!;
+}
+.dark .bg-red-100 {
+  @apply bg-red-900/50!;
+}
+
+.dark .bg-amber-50, .dark .bg-amber-50\/30 {
+  @apply bg-amber-900/30!;
+}
+
+/* Buttons and forms */
+.dark select, .dark button, .dark input {
+  color: inherit;
+}
+
 
