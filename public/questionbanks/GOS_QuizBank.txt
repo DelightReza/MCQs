@@ -3001,7 +3001,8 @@ Disseminated intravascular coagulation
 
 ---
 
-Q: A 47-year-old woman is referred to the endocrine clinic complaining of a two month history of tiredness. Despite wearing several items of clothing, the patient appears intolerant to the room temperature. She has noticed an increase in weight, particularly around her waist. The most appropriate investigation is: A .Radioiodine scan
+Q: A 47-year-old woman is referred to the endocrine clinic complaining of a two month history of tiredness. Despite wearing several items of clothing, the patient appears intolerant to the room temperature. She has noticed an increase in weight, particularly around her waist. The most appropriate investigation is:
+Radioiodine scan
 * Thyroid stimulating hormone (TSH)
 Total tetraiodothyronine level (T4)
 Tri-iodothyronine level (T3)
