@@ -91,7 +91,17 @@ export function Results({ session, bookmarkedIds, onHome, onToggleBookmark }: Re
   };
 
   const getValidMediaPath = (path: string) => {
-    return `/${path}`;
+    let cleanPath = path;
+    if (cleanPath.startsWith('public/')) {
+      cleanPath = cleanPath.substring(7);
+    } else if (cleanPath.startsWith('/public/')) {
+      cleanPath = cleanPath.substring(8);
+    }
+    if (cleanPath.startsWith('/')) {
+      cleanPath = cleanPath.substring(1);
+    }
+    const base = import.meta.env.BASE_URL || '/';
+    return `${base}${cleanPath}`;
   };
 
   const renderMedia = (mediaPaths?: string[]) => {
