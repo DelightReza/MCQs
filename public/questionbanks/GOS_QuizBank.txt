@@ -1690,6 +1690,15 @@ Fibroid
 
 ---
 
+Q: A patient with long history of liver disease had portal hypertension with hematemesis and melena.On endoscopy esophageal varices are present.
+On evaluation repeat bleeding occurs and patent died. What is the cause of death
+Esophageal variceal bleeding
+* Hypovolemic shock
+Cardiogenic shock
+Neurogenic shock
+
+---
+
 Q: Pressure sores are formed when pressure is above
 * Over 30 mm of Hg
 Over 40 mm of Hg
@@ -2373,66 +2382,66 @@ Esophageal atresia with proximal and distal tracheoesophageal fistula
 ---
 
 Q: Post-vagotomy diarrhoea can be effectively managed by
-A.Steroids
-B.Thyroxin
-* C.Somatostatin analogue
-D.Parathormone
+Steroids
+Thyroxin
+* Somatostatin analogue
+Parathormone
 
 ---
 
 Q: Histologic examination of the lesion in stomach reveal fat-laiden cells ,likely cause is
-A.Lymphoma
-B.Psost gastrectomy
-* C.Signet-cell carcinoma stomach
-D.Atrophic gastritis
+Lymphoma
+Psost gastrectomy
+* Signet-cell carcinoma stomach
+Atrophic gastritis
 
 ---
 
 Q: Minimum amount of GI bleed to cause melena is
-A.10 ml
-B.40 ml
-* C.60 ml
-D.115 ml
+10 ml
+40 ml
+* 60 ml
+115 ml
 
 ---
 
 Q: The most sensitive test to detect GI bleeding is
-A.Selective angiography
-* B.Radiolabelled ,Erythrocyte Scanning
-C.I-131 Fibrinogen studies
-D.Stool for occult blood
+Selective angiography
+* Radiolabelled ,Erythrocyte Scanning
+I-131 Fibrinogen studies
+Stool for occult blood
 
 ---
 
 Q: Treatment of hydatid cyst
-A.Excision of cyst
-* B.Percutaneous drainage
-C.Conservative management
-D.None
+Excision of cyst
+* Percutaneous drainage
+Conservative management
+None
 
 ---
 
 Q: Normal portal vein pressure is
-A.<3 mm Hg
-B.3-5 mm Hg
-* C.5-10 mm Hg
-D.10-12 mm Hg
+<3 mm Hg
+3-5 mm Hg
+* 5-10 mm Hg
+10-12 mm Hg
 
 ---
 
 Q: Anemia is greater in which of the following gastric resection
-* A.Billorth II
-B.Billorth I
-C.Both of the above are equal
-D.Neither of the above
+* Billorth II
+Billorth I
+Both of the above are equal
+Neither of the above
 
 ---
 
 Q: The operation of choice in congenital pyloric stenosis is
-A.Pyloroplasty
-* B.Pyloromyotomy
-C.Gastro-jejunostomy
-D.Gastro-duodenostomy
+Pyloroplasty
+* Pyloromyotomy
+Gastro-jejunostomy
+Gastro-duodenostomy
 
 ---
 
