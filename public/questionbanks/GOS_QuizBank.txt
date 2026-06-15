@@ -1690,8 +1690,7 @@ Fibroid
 
 ---
 
-Q: A patient with long history of liver disease had portal hypertension with hematemesis and melena.On endoscopy esophageal varices are present.
-On evaluation repeat bleeding occurs and patent died. What is the cause of death
+Q: A patient with long history of liver disease had portal hypertension with hematemesis and melena.On endoscopy esophageal varices are present. On evaluation repeat bleeding occurs and patent died. What is the cause of death
 Esophageal variceal bleeding
 * Hypovolemic shock
 Cardiogenic shock
@@ -2498,7 +2497,7 @@ Administer thrombolysis immediately
 * Transfer for primary PCI
 Start beta-blocker therapy only
 Wait for troponin results
-E. Give only aspirin and observe
+Give only aspirin and observe
 
 ---
 
@@ -2561,7 +2560,7 @@ Repeat transthoracic echocardiography
 CT pulmonary angiography
 * Right heart catheterization
 Cardiac MRI
-E. BNP measurement
+BNP measurement
 
 ---
 
@@ -2606,7 +2605,7 @@ Treat as outpatient with oral amoxicillin
 Admit to general ward
 * Admit to ICU
 Discharge after single IV antibiotic dose
-E. No antibiotics until sputum culture results
+No antibiotics until sputum culture results
 
 ---
 
@@ -2615,7 +2614,7 @@ IV piperacillin-tazobactam
 * Oral amoxicillin
 Oral vancomycin
 IV meropenem
-E. No antibiotics needed
+No antibiotics needed
 
 ---
 
@@ -2624,7 +2623,7 @@ Oral amoxicillin only
 * Broad-spectrum IV antibiotics covering Pseudomonas
 No antibiotics until cultures return
 Antiviral therapy
-E. Start corticosteroids only
+Start corticosteroids only
 
 ---
 
@@ -2695,7 +2694,7 @@ Oral antibiotics only
 Repeat thoracentesis
 * Chest tube drainage
 Observation
-E. Diuretic therapy
+Diuretic therapy
 
 ---
 
@@ -2776,7 +2775,7 @@ Stop all therapy
 Low-dose oral PPI
 * High-dose IV proton pump inhibitor infusion
 Immediate surgery
-E. No acid suppression needed
+No acid suppression needed
 
 ---
 
@@ -3024,7 +3023,7 @@ Hyperosmolar hyperglycemic state
 * Diabetic ketoacidosis
 Lactic acidosis
 Acute pancreatitis
-E. Severe hypoglycemia
+Severe hypoglycemia
 
 ---
 
@@ -3482,7 +3481,7 @@ Tuberculosis
 
 ---
 
-Q: .In a patient with preeclampsia, what signs and symptoms indicate that the patient has a high risk of experiencing a seizure due to central nervous system irritability? Select all that apply:
+Q: In a patient with preeclampsia, what signs and symptoms indicate that the patient has a high risk of experiencing a seizure due to central nervous system irritability? Select all that apply:
 * You note bouncing of the foot when it is quickly dorsiflexed.
 Patellar and bicep deep tendon reflexes are graded 4+.
 Platelet count 200,000
@@ -3672,7 +3671,8 @@ Corneal ulcer.
 
 ---
 
-Q: A disease more common in men, characterized by hematuria in combination with skin rashes and abdominal pain, is А.  SCR
+Q: A disease more common in men, characterized by hematuria in combination with skin rashes and abdominal pain, is
+SCR
 * Mixed cryoglobulinemia
 Acute nephritis
 Hemorrhagic vasculitis
@@ -4073,7 +4073,7 @@ Stomach cancer
 Q: You check serologies on a patient exposed to hepatitis B. His serologies are shown below: • HBsAg: Negative • HBeAg: Negative • IgM anti-HBc: Negative • IgG anti-HBc: Negative • Anti-HBs: Positive • Anti-HBe: Negative • HBV-DNA: Negative Which term best describes his disease status?
 Acute infection, early phase
 Acute infection, window phase
-с. Previous exposure with immunity
+Previous exposure with immunity
 * Vaccination
 
 ---
