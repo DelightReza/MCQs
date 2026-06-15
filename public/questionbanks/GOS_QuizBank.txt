@@ -1762,7 +1762,7 @@ Air embolism
 
 ---
 
-Q: A 30 year old car driver was involved in accident. He is bought to emergency with complains of breathlessness , PR-110/min , BP-90/60 mm of Hg and temperature---37°C. External bruising on the right side of chest. On  x-ray chest  ribs are fractured. Diagnosis
+Q: A 30 year old car driver was involved in accident. He is bought to emergency with complains of breathlessness , PR-110/min , BP-90/60 mm of Hg and temperature-37°C. External bruising on the right side of chest. On  x-ray chest  ribs are fractured. Diagnosis
 Pneumothorax
 Hemothorax
 * Flail chest
