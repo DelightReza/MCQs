@@ -13,14 +13,25 @@ export default function App() {
   const [screen, setScreenState] = useState<AppScreen>('MENU');
 
   useEffect(() => {
+    try {
+      const savedScreen = localStorage.getItem('uqp_current_screen');
+      if (savedScreen) {
+        setScreenState(savedScreen as AppScreen);
+        window.history.replaceState({ screen: savedScreen }, '');
+      } else {
+        window.history.replaceState({ screen: 'MENU' }, '');
+      }
+    } catch(e) {}
+
     const handlePopState = (e: PopStateEvent) => {
       if (e.state && e.state.screen) {
         setScreenState(e.state.screen);
+        localStorage.setItem('uqp_current_screen', e.state.screen);
       } else {
         setScreenState('MENU');
+        localStorage.setItem('uqp_current_screen', 'MENU');
       }
     };
-    window.history.replaceState({ screen: 'MENU' }, '');
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -28,11 +39,17 @@ export default function App() {
   const setScreen = (newScreen: AppScreen) => {
     window.history.pushState({ screen: newScreen }, '');
     setScreenState(newScreen);
+    localStorage.setItem('uqp_current_screen', newScreen);
   };
   
   const [qbanks, setQbanks] = useState<QBank[]>([]);
   const [qbanksLoaded, setQbanksLoaded] = useState(false);
   const [selectedQBankId, setSelectedQBankId] = useState<string>('');
+
+  const handleSelectQBank = (id: string) => {
+    setSelectedQBankId(id);
+    localStorage.setItem('uqp_selected_bank_id', id);
+  };
 
   useEffect(() => {
     fetchQBanks().then(banks => {
@@ -41,10 +58,16 @@ export default function App() {
         
         const params = new URLSearchParams(window.location.search);
         const bankParam = params.get('bank');
+        const savedBankId = localStorage.getItem('uqp_selected_bank_id');
         let initialBankId = banks[0].id;
 
         if (bankParam) {
           const found = banks.find(b => b.id === bankParam || b.id === `${bankParam}.txt` || b.name.includes(bankParam));
+          if (found) {
+            initialBankId = found.id;
+          }
+        } else if (savedBankId) {
+          const found = banks.find(b => b.id === savedBankId);
           if (found) {
             initialBankId = found.id;
           }
@@ -61,13 +84,27 @@ export default function App() {
 
   const [activeSession, setActiveSession] = useState<QuizSession | null>(null);
 
-  // Load from local storage on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem('uqp_active_session');
+      let loadedSession = null;
+      const savedScreen = localStorage.getItem('uqp_current_screen');
+      
       if (saved) {
-        const parsed = JSON.parse(saved);
-        setActiveSession(parsed);
+        loadedSession = JSON.parse(saved);
+        setActiveSession(loadedSession);
+      } else if (savedScreen === 'RESULTS') {
+        const completed = localStorage.getItem('uqp_completed_session');
+        if (completed) {
+          loadedSession = JSON.parse(completed);
+          setActiveSession(loadedSession);
+        }
+      }
+      
+      if ((savedScreen === 'QUIZ' || savedScreen === 'RESULTS') && !loadedSession) {
+        setScreenState('MENU');
+        window.history.replaceState({ screen: 'MENU' }, '');
+        localStorage.setItem('uqp_current_screen', 'MENU');
       }
     } catch(e) {}
   }, []);
@@ -207,12 +244,15 @@ export default function App() {
     if (incorrectsToAdd.length > 0) store.addIncorrectUrls(incorrectsToAdd);
     correctsToRemove.forEach(id => store.removeIncorrectUrl(id));
     
+    // Save completed session so results survive a refresh
+    localStorage.setItem('uqp_completed_session', JSON.stringify(activeSession));
     localStorage.removeItem('uqp_active_session');
     setScreen('RESULTS');
   };
 
   const handleClearSession = () => {
     localStorage.removeItem('uqp_active_session');
+    localStorage.removeItem('uqp_completed_session');
     setActiveSession(null);
   };
 
@@ -248,7 +288,7 @@ export default function App() {
             key="menu"
             qbanks={qbanks}
             selectedQBankId={selectedQBankId}
-            onSelectQBank={setSelectedQBankId}
+            onSelectQBank={handleSelectQBank}
             onUploadQBank={handleUploadQBank}
             hasActiveSession={!!activeSession}
             onResumeSession={() => setScreen('QUIZ')}
@@ -291,6 +331,7 @@ export default function App() {
             onToggleBookmark={store.toggleBookmark}
             onHome={() => {
               setActiveSession(null);
+              localStorage.removeItem('uqp_completed_session');
               setScreen('MENU');
             }}
           />
